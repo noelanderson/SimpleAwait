@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Host unit tests at the C++20 language floor (and C++23 where the toolchain
+  # supports it, driven automatically by the test CMakeLists) on GCC and Clang.
+  # ---------------------------------------------------------------------------
+  host-tests:
+    name: Host tests (${{ matrix.cxx }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cc: gcc,   cxx: g++ }
+          - { cc: clang, cxx: clang++ }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build ${{ matrix.cc }}
+      - name: Configure
+        run: cmake -S . -B build -G Ninja
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # ---------------------------------------------------------------------------
+  # AddressSanitizer + UndefinedBehaviorSanitizer host run.
+  # ---------------------------------------------------------------------------
+  sanitizers:
+    name: Sanitizers (ASan/UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build clang
+      - name: Configure
+        run: cmake -S . -B build-san -G Ninja -DARDUINOAWAIT_ENABLE_SANITIZERS=ON
+        env:
+          CC: clang
+          CXX: clang++
+      - name: Build
+        run: cmake --build build-san
+      - name: Test
+        run: ctest --test-dir build-san --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+
+  # ---------------------------------------------------------------------------
+  # Arduino target compile checks for the Empty build-skeleton example.
+  # ---------------------------------------------------------------------------
+  arduino:
+    name: Arduino compile (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: RP2040
+            fqbn: rp2040:rp2040:rpipico
+            core: rp2040:rp2040
+            url: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+          - name: RP2350 (Arm)
+            fqbn: rp2040:rp2040:rpipico2
+            core: rp2040:rp2040
+            url: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+          - name: ESP32-S3
+            fqbn: esp32:esp32:esp32s3
+            core: esp32:esp32
+            url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup arduino-cli
+        uses: arduino/setup-arduino-cli@v2
+      - name: Install core
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls ${{ matrix.url }}
+          arduino-cli core update-index
+          arduino-cli core install ${{ matrix.core }}
+      - name: Compile Empty example
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            examples/Empty
+
+  # ---------------------------------------------------------------------------
+  # Validate Arduino library metadata.
+  # ---------------------------------------------------------------------------
+  library-metadata:
+    name: Arduino Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Arduino Lint
+        uses: arduino/arduino-lint-action@v1
+        with:
+          library-manager: update
+          compliance: strict

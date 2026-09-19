@@ -24,8 +24,28 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   tests compiled at the C++20 language floor and, where available, C++23.
 - `examples/Empty/` build-skeleton sketch for target compile checks.
 - CI skeleton (`.github/workflows/ci.yml`) covering host GCC/Clang C++20/C++23
-  builds with ASan/UBSan and RP2040/RP2350/ESP32 example compiles.
+  builds across `-O0`/`-O2`/`-Os`, ASan/UBSan, RP2040/RP2350 (Arm and RISC-V)
+  and ESP32/ESP32-S3 example compiles, and a metadata gate
+  (`.github/scripts/lint_metadata_gate.py`) that runs arduino-lint and fails on
+  any error except the documented `LP012` "Arduino" name-prefix deviation.
 - Project docs, `LICENSE` (MIT), and this changelog.
+
+### Hardened after independent milestone review
+
+- The default embedded halt (`arduinoawait::detail::halt`) now performs a
+  per-iteration `volatile` access so the deterministic halt loop is preserved
+  under the C++20 forward-progress rules ([intro.progress]) at every
+  optimization level, without relying on the later P2809 fix.
+- Added host tests: a two-translation-unit ODR check (inline version constant
+  and error-handler template each have one definition program-wide), a death
+  test proving the default error hook terminates deterministically, and a
+  persistent negative-compile probe asserting the coroutine-support guard
+  rejects a pre-C++20 build.
+- Reworked the metadata CI job into a documented gate that runs arduino-lint at
+  specification compliance and fails on any error except the intentional
+  `LP012` "Arduino" name-prefix deviation inherent to the fixed project name
+  (the maintainer name-prefix remains a non-blocking warning); corrected the
+  README example-build commands (`--library .`) and coverage wording.
 
 No coroutine scheduling is implemented at M0.
 

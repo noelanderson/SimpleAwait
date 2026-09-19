@@ -24,10 +24,12 @@ statically allocated, C++20, Arduino-native equivalent in spirit to MicroPython
 `asyncio` — **not** a tiny RTOS.
 
 > **Status: milestone M0 (build skeleton).** The public include, configuration
-> surface, and compile-time coroutine-support checks exist and compile across
-> the target matrix. The scheduler, `Task`, timers, and synchronization
-> primitives are implemented in subsequent milestones. The example above shows
-> the intended V1 API and does not compile yet.
+> surface, and compile-time coroutine-support checks exist. They are verified by
+> the host test suite (C++20 and C++23) and by `examples/Empty` compiles for
+> RP2040 and RP2350 (Arm and RISC-V); the ESP32/ESP32-S3 example compiles run in
+> CI. The scheduler, `Task`, timers, and synchronization primitives are
+> implemented in subsequent milestones. The example above shows the intended V1
+> API and does not compile yet.
 
 ## First-class targets
 
@@ -78,13 +80,20 @@ with AddressSanitizer and UndefinedBehaviorSanitizer.
 
 ## Compiling an example (Arduino)
 
+The `--library .` flag points arduino-cli at this repository as the library
+source (there is no installed copy in a fresh checkout):
+
 ```sh
 # RP2040
-arduino-cli compile --fqbn rp2040:rp2040:rpipico examples/Empty
+arduino-cli compile --fqbn rp2040:rp2040:rpipico --library . examples/Empty
 # RP2350 (Arm)
-arduino-cli compile --fqbn rp2040:rp2040:rpipico2 examples/Empty
+arduino-cli compile --fqbn rp2040:rp2040:rpipico2 --library . examples/Empty
+# RP2350 (RISC-V)
+arduino-cli compile --fqbn rp2040:rp2040:rpipico2:arch=riscv --library . examples/Empty
+# ESP32
+arduino-cli compile --fqbn esp32:esp32:esp32 --library . examples/Empty
 # ESP32-S3
-arduino-cli compile --fqbn esp32:esp32:esp32s3 examples/Empty
+arduino-cli compile --fqbn esp32:esp32:esp32s3 --library . examples/Empty
 ```
 
 ## Documentation
@@ -96,9 +105,20 @@ The normative specification lives under [`docs/arduinoawait/`](docs/arduinoawait
 - [`ArduinoAwait_Implementation_Spec.md`](docs/arduinoawait/ArduinoAwait_Implementation_Spec.md)
 - [`IMPLEMENTATION_PLAN.md`](docs/arduinoawait/IMPLEMENTATION_PLAN.md) — milestones
 
+## Packaging and publication notes
+
+The MIT license, the `ArduinoAwait contributors` copyright holder, and the
+repository URL in the packaging metadata are initial defaults; update them to
+match the project's chosen license and canonical repository when published.
+
+The library name **intentionally** starts with "Arduino". Arduino Lint reports
+this as rule `LP012` ("name starts with Arduino", reserved for official
+libraries) at every compliance level. This is a fixed part of the public
+identity (`ArduinoAwait.h`, namespace `arduinoawait`) and only affects a future
+Arduino Library Manager submission decision. The CI metadata check validates the
+metadata and tolerates only this one documented deviation; it does not enable
+arduino-lint "official" mode.
+
 ## License
 
-[MIT](LICENSE). The MIT license and the `ArduinoAwait contributors` copyright
-holder / repository URL in the packaging metadata are initial defaults; update
-them to match the project's chosen license and canonical repository when
-published.
+[MIT](LICENSE).

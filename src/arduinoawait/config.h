@@ -79,7 +79,17 @@ namespace arduinoawait {
 namespace detail {
 
 [[noreturn]] inline void halt() noexcept {
+    // The default embedded halt must be preserved on every language standard and
+    // optimization level. An empty infinite loop is eligible for removal under
+    // the C++20 forward-progress rules ([intro.progress]), which would let the
+    // deterministic halt fall through. A per-iteration volatile access is an
+    // observable side effect that keeps the loop intact without relying on the
+    // later P2809 "trivial infinite loops are not UB" fix. Using a for(;;) header
+    // (rather than a volatile condition) keeps the function unconditionally
+    // non-returning so [[noreturn]] stays warning-clean.
     for (;;) {
+        volatile unsigned aa_halt_tick = 0u;
+        (void)aa_halt_tick;
     }
 }
 

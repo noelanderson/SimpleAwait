@@ -53,9 +53,17 @@ public:
 
     Task& operator=(Task&& other) noexcept {
         if (this != &other) {
-            reset();
+            // Take the source's frame and empty the source BEFORE destroying our
+            // previous frame. The source may live inside that frame (e.g. a
+            // by-value coroutine parameter); destroying our frame first would run
+            // the source's destructor and then leave us reading a destroyed
+            // source (UB / silently lost work).
+            const handle_type previous = handle_;
             handle_ = other.handle_;
             other.handle_ = {};
+            if (previous) {
+                previous.destroy();
+            }
         }
         return *this;
     }
@@ -73,12 +81,15 @@ public:
 private:
     explicit Task(handle_type h) noexcept : handle_(h) {}
 
-    // Destroy the owned frame, if any, exactly once. A suspended (never-resumed)
-    // coroutine's destroy() runs no user code; it just releases the frame.
+    // Destroy the owned frame, if any, exactly once. Destroying a suspended
+    // (never-resumed) coroutine still runs its by-value parameters' destructors
+    // (but not the body); detach handle_ FIRST so that if such a destructor
+    // re-enters this Task (e.g. assigns it empty), the re-entry sees an empty
+    // handle and is a no-op instead of a double destroy.
     void reset() noexcept {
-        if (handle_) {
-            handle_.destroy();
+        if (const handle_type h = handle_) {
             handle_ = {};
+            h.destroy();
         }
     }
 

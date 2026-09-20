@@ -76,6 +76,7 @@ arduinoawait_add_host_test(test_m1_deadline_default test_m1_deadline_default.cpp
 arduinoawait_add_host_test(test_m2_frame_pool test_m2_frame_pool.cpp)
 arduinoawait_add_host_test(test_m3_task test_m3_task.cpp)
 arduinoawait_add_host_test(test_m3_task_exhaustion test_m3_task_exhaustion.cpp)
+arduinoawait_add_host_test(test_m3_ownership_edge test_m3_ownership_edge.cpp)
 
 # The default error hook must terminate deterministically.
 arduinoawait_add_death_test(test_m0_default_error test_m0_default_error.cpp)

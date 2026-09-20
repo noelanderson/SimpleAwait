@@ -7,6 +7,33 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M3: Lazy Task<void> and ownership
+
+- `arduinoawait::Task<void>` (`src/arduinoawait/task.h`): a lazy, move-only
+  coroutine handle. Calling a Task-returning coroutine allocates the frame from
+  the fixed pool and suspends at `initial_suspend` — the body does not run until
+  the Task is scheduled/awaited (later milestones). Ownership is a single token:
+  moving transfers it and empties the source; a default/moved-from Task owns
+  nothing and its destructor is a no-op; destroying an unscheduled Task destroys
+  its frame exactly once and returns the bytes to the pool. `explicit operator
+  bool()` reports ownership. `Task<T>` for any `T != void` is a clear compile
+  error (`static_assert`).
+- The `Task<void>` promise's `operator new`/`operator delete` (plain, `nothrow`,
+  and sized) route through the process-wide frame pool
+  (`detail::frame_pool()`, `src/arduinoawait/detail/global_frame_pool.h`), so no
+  coroutine frame ever touches the global heap. On exhaustion the deterministic
+  hook is invoked with `Error::frame_pool_exhausted`; with a non-halting override
+  the coroutine returns the empty Task via `get_return_object_on_allocation_failure`
+  (no exception, works under `-fno-exceptions`). An unhandled exception routes to
+  `Error::unhandled_exception`.
+- Host tests: laziness (body not run), frame-from-pool with a global new/delete
+  canary (no heap), move-construct/assign ownership transfer, moved-from/default
+  harmlessness, full recovery over many create/destroy cycles, and a small-pool
+  exhaustion test (frame_pool_exhausted + empty Task + recovery). Pass on MSVC and
+  Clang 23.1.1 at C++20 and C++23.
+- `hardware/TaskLifecycle` validation sketch (developer tool; not host CI) that
+  forces the coroutine promise + pool integration to compile/link on every target.
+
 ### Added — M2: Fixed coroutine frame allocator
 
 - `detail::FramePool<Bytes>` (`src/arduinoawait/detail/frame_pool.h`): a fixed

@@ -122,6 +122,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             hardware/FramePoolCheck
+      - name: Compile task lifecycle sketch (coroutine + pool integration)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            hardware/TaskLifecycle
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

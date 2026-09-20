@@ -17,12 +17,12 @@
 //  See docs/arduinoawait/V1_API_CONTRACT.md for the frozen public API and
 //  docs/arduinoawait/ARCHITECTURE.md for the normative design.
 //
-//  Milestone status: M2 (fixed coroutine frame allocator). Adds the deterministic
+//  Milestone status: M3 (lazy Task<void> and ownership). Adds the deterministic
 //  Error surface, the 64-bit monotonic microsecond platform clock plus deadline
-//  arithmetic, and the fixed-arena coalescing frame allocator (no global heap
-//  fallback). No coroutine scheduling is implemented yet; Task, the scheduler,
-//  timers, and the synchronization primitives arrive in later milestones without
-//  changing this include path.
+//  arithmetic, the fixed-arena coalescing frame allocator, and the lazy,
+//  move-only Task<void> whose frames come from the pool (no global heap). The
+//  scheduler (create_task/spawn/poll), timers, and synchronization primitives
+//  arrive in later milestones without changing this include path.
 // ============================================================================
 
 // Compile-time coroutine support verification. Must come first so an
@@ -44,6 +44,9 @@
 
 // Fixed coroutine frame allocator (no global heap fallback).
 #include "arduinoawait/detail/frame_pool.h"
+
+// Lazy, move-only Task<void> coroutine handle.
+#include "arduinoawait/task.h"
 
 namespace arduinoawait {
 

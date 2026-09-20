@@ -107,5 +107,23 @@ int main() {
     }
     AA_CHECK(frame_pool().bytesUsed() == base);
 
+    // ---- B2b: the SAME reentry via the destructor path (~Task -> reset()) ----
+    {
+        g_owned_guard_dtors = 0;
+        g_owner_empty_at_dtor = false;
+        g_last_error = -1;
+        {
+            Task<void> t;
+            ReentrantGuard g;
+            g.owner = &t;
+            t = guarded_coro(std::move(g));
+            AA_CHECK(static_cast<bool>(t));
+        } // t goes out of scope: ~Task -> reset() -> guard dtor re-enters -> empties t
+        AA_CHECK(g_owned_guard_dtors == 1);
+        AA_CHECK(g_owner_empty_at_dtor);
+        AA_CHECK(g_last_error != static_cast<int>(Error::internal_error));
+    }
+    AA_CHECK(frame_pool().bytesUsed() == base);
+
     AA_RUN_TESTS();
 }

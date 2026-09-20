@@ -17,11 +17,11 @@
 //  See docs/arduinoawait/V1_API_CONTRACT.md for the frozen public API and
 //  docs/arduinoawait/ARCHITECTURE.md for the normative design.
 //
-//  Milestone status: M0 (repository and build skeleton). No coroutine
-//  scheduling is implemented yet; this header currently establishes the
-//  configuration surface, the compile-time coroutine-support checks, and the
-//  public namespace. Later milestones add Task, the scheduler, timers, and the
-//  synchronization primitives without changing this include path.
+//  Milestone status: M1 (platform clock abstraction). Adds the deterministic
+//  Error surface and the 64-bit monotonic microsecond platform clock plus
+//  deadline arithmetic. No coroutine scheduling is implemented yet; Task, the
+//  scheduler, timers, and the synchronization primitives arrive in later
+//  milestones without changing this include path.
 // ============================================================================
 
 // Compile-time coroutine support verification. Must come first so an
@@ -33,6 +33,13 @@
 
 // Library version constants.
 #include "arduinoawait/version.h"
+
+// Deterministic error codes (frozen V1 surface).
+#include "arduinoawait/error.h"
+
+// Platform 64-bit monotonic microsecond clock and deadline arithmetic.
+#include "arduinoawait/detail/platform_clock.h"
+#include "arduinoawait/detail/time_math.h"
 
 namespace arduinoawait {
 

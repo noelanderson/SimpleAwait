@@ -70,6 +70,8 @@ endfunction()
 arduinoawait_add_host_test(test_m0_skeleton test_m0_skeleton.cpp)
 arduinoawait_add_host_test(test_m0_config_override test_m0_config_override.cpp)
 arduinoawait_add_host_test(test_m0_odr test_m0_odr_tu1.cpp test_m0_odr_tu2.cpp)
+arduinoawait_add_host_test(test_m1_clock test_m1_clock.cpp)
+arduinoawait_add_host_test(test_m1_time_math test_m1_time_math.cpp)
 
 # The default error hook must terminate deterministically.
 arduinoawait_add_death_test(test_m0_default_error test_m0_default_error.cpp)

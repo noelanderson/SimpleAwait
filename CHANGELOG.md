@@ -50,8 +50,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   specification compliance and fails on any error except the intentional
   `LP012` "Arduino" name-prefix deviation inherent to the fixed project name
   (the maintainer name-prefix remains a non-blocking warning). The gate fails
-  closed on malformed/empty/non-library reports; the CI step installs
-  arduino-lint correctly and distinguishes a linter crash from ordinary rule
+  closed on malformed, empty, non-library, schema-invalid (unknown rule
+  result/level values), or internally inconsistent (summary errorCount vs.
+  inspected failures) reports; the CI step installs arduino-lint correctly and
+  distinguishes a linter crash from ordinary rule
   errors. Corrected the README example-build commands (`--library .`) and
   coverage wording.
 

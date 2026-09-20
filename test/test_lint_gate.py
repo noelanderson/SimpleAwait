@@ -119,6 +119,12 @@ def main():
         ("empty-result-fails", 1,
          lambda: _run_json(_report(
              [_library([{"ID": "LP011", "result": "", "level": "ERROR"}])]))),
+        ("non-string-result-fails", 1,
+         lambda: _run_json(_report(
+             [_library([{"ID": "LP011", "result": ["fail"], "level": "ERROR"}])]))),
+        ("non-string-level-fails", 1,
+         lambda: _run_json(_report(
+             [_library([{"ID": "LP011", "result": "fail", "level": {}}])]))),
         ("empty-id-fails", 1,
          lambda: _run_json(_report(
              [_library([{"ID": "", "result": "fail", "level": "WARNING"}])]))),

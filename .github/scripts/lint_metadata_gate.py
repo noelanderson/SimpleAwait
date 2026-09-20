@@ -98,10 +98,10 @@ def evaluate(report):
             if not (isinstance(rule_id, str) and rule_id):
                 _error("arduino-lint rule record has a missing or empty ID")
                 return 1
-            if result not in _ALLOWED_RESULTS:
+            if not isinstance(result, str) or result not in _ALLOWED_RESULTS:
                 _error(f"arduino-lint rule {rule_id} has an unknown result value: {result!r}")
                 return 1
-            if level not in _ALLOWED_LEVELS:
+            if not isinstance(level, str) or level not in _ALLOWED_LEVELS:
                 _error(f"arduino-lint rule {rule_id} has an unknown level value: {level!r}")
                 return 1
             if result == "fail" and level == "ERROR":

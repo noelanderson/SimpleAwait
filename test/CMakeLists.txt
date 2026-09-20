@@ -73,6 +73,7 @@ arduinoawait_add_host_test(test_m0_odr test_m0_odr_tu1.cpp test_m0_odr_tu2.cpp)
 arduinoawait_add_host_test(test_m1_clock test_m1_clock.cpp)
 arduinoawait_add_host_test(test_m1_time_math test_m1_time_math.cpp)
 arduinoawait_add_host_test(test_m1_deadline_default test_m1_deadline_default.cpp)
+arduinoawait_add_host_test(test_m2_frame_pool test_m2_frame_pool.cpp)
 
 # The default error hook must terminate deterministically.
 arduinoawait_add_death_test(test_m0_default_error test_m0_default_error.cpp)

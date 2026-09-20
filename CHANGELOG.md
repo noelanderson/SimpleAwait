@@ -7,6 +7,30 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M2: Fixed coroutine frame allocator
+
+- `detail::FramePool<Bytes>` (`src/arduinoawait/detail/frame_pool.h`): a fixed
+  byte arena that hands out variable-size, aligned blocks for coroutine frames
+  with no global heap fallback. It is a coalescing first-fit free list —
+  arbitrary free order, adjacent free blocks merge, and full capacity is
+  recovered once every block is freed (`bytesUsed() == 0`). Alignment is honored
+  up to and beyond `alignof(std::max_align_t)` (over-aligned requests are padded
+  within the block). Exhaustion is deterministic: `allocate()` returns `nullptr`
+  and records a failure rather than allocating from the heap (the caller applies
+  the `Error::frame_pool_exhausted` policy in a later milestone). Block headers
+  live in the arena and are created with placement `new` / re-accessed through
+  `std::launder` for well-defined object lifetime. Stats: `bytesUsed`,
+  `bytesFree`, `peakBytesUsed`, `allocationFailures`, `capacity`, `blockOverhead`.
+- Host test covering exact-capacity allocation, many small frames, mixed sizes
+  with non-overlap, arbitrary destruction order, fragmentation/coalescing with
+  full recovery, over-aligned requests, deterministic exhaustion, peak tracking,
+  and a global `operator new`/`delete` canary proving the pool never touches the
+  heap. (Clang ASan/UBSan run in CI; MSVC ASan is environmentally blocked on the
+  dev host.)
+- `hardware/FramePoolCheck` validation sketch (developer tool; not host CI) that
+  exercises the allocator on-target and, via CI, compiles/links it for every
+  target's word size and alignment.
+
 ### Added — M1: Platform clock abstraction
 
 - Deterministic `arduinoawait::Error` enum (frozen V1 surface) in

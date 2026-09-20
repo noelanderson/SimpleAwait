@@ -14,6 +14,9 @@ Current sketches:
 - `ClockMonotonic/` — M1: reads the native 64-bit microsecond clock and checks it
   is monotonic and actually advances (portable across RP2040/RP2350/ESP32; the
   platform layer selects the backend).
+- `FramePoolCheck/` — M2: allocates and frees frames (including an over-aligned
+  one) and confirms full recovery, forcing the allocator to compile and link for
+  the target's word size and alignment.
 
 Additional target-specific validation is added as later milestones land (for
 example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).

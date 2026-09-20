@@ -116,6 +116,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             hardware/ClockMonotonic
+      - name: Compile frame pool validation sketch (instantiates the allocator)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            hardware/FramePoolCheck
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

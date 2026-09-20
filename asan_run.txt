@@ -1,0 +1,3 @@
+==28696==interception_win: unhandled instruction at 0x7ffbd2c85013: 4c 8b ca f6 c1 07 74 1b
+==28696==interception_win: unhandled instruction at 0x7ffbd2c83da3: 69 d2 01 01 01 01 66 0f
+==28696==interception_win: unhandled instruction at 0x7ffbce04be34: 0f 29 74 24 30 0f 28 f0

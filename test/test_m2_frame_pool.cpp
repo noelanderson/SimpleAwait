@@ -10,17 +10,59 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <new>
+
+#if defined(_MSC_VER)
+#  include <malloc.h>
+#endif
 
 namespace {
 unsigned long long g_global_new_calls = 0;
+
+void* raw_aligned(std::size_t n, std::size_t align) {
+    if (align < sizeof(void*)) {
+        align = sizeof(void*);
+    }
+#if defined(_MSC_VER)
+    return _aligned_malloc(n ? n : 1, align);
+#else
+    void* p = nullptr;
+    if (posix_memalign(&p, align, n ? n : 1) != 0) {
+        p = nullptr;
+    }
+    return p;
+#endif
 }
 
+void raw_aligned_free(void* p) {
+#if defined(_MSC_VER)
+    _aligned_free(p);
+#else
+    std::free(p);
+#endif
+}
+} // namespace
+
+// Instrument every replaceable global allocation function (plain, array, sized,
+// and over-aligned) so the canary catches ANY global heap use by the pool.
 void* operator new(std::size_t n) { ++g_global_new_calls; return std::malloc(n ? n : 1); }
 void* operator new[](std::size_t n) { ++g_global_new_calls; return std::malloc(n ? n : 1); }
+void* operator new(std::size_t n, std::align_val_t a) {
+    ++g_global_new_calls;
+    return raw_aligned(n, static_cast<std::size_t>(a));
+}
+void* operator new[](std::size_t n, std::align_val_t a) {
+    ++g_global_new_calls;
+    return raw_aligned(n, static_cast<std::size_t>(a));
+}
 void operator delete(void* p) noexcept { std::free(p); }
 void operator delete[](void* p) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
+void operator delete(void* p, std::align_val_t) noexcept { raw_aligned_free(p); }
+void operator delete[](void* p, std::align_val_t) noexcept { raw_aligned_free(p); }
+void operator delete(void* p, std::size_t, std::align_val_t) noexcept { raw_aligned_free(p); }
+void operator delete[](void* p, std::size_t, std::align_val_t) noexcept { raw_aligned_free(p); }
 
 #include <ArduinoAwait.h>
 
@@ -110,8 +152,9 @@ int main() {
         AA_CHECK(pool.bytesUsed() == 0);
 
         // A single allocation can again use essentially the whole arena.
-        void* big = pool.allocate(pool.capacity() - 64);
+        void* big = pool.allocate(pool.capacity() - pool.blockOverhead());
         AA_CHECK(big != nullptr);
+        AA_CHECK(pool.bytesUsed() == pool.capacity()); // exact maximum payload
         pool.deallocate(big);
         AA_CHECK(pool.bytesUsed() == 0);
     }

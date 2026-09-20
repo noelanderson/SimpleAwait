@@ -72,9 +72,13 @@ arduinoawait_add_host_test(test_m0_config_override test_m0_config_override.cpp)
 arduinoawait_add_host_test(test_m0_odr test_m0_odr_tu1.cpp test_m0_odr_tu2.cpp)
 arduinoawait_add_host_test(test_m1_clock test_m1_clock.cpp)
 arduinoawait_add_host_test(test_m1_time_math test_m1_time_math.cpp)
+arduinoawait_add_host_test(test_m1_deadline_default test_m1_deadline_default.cpp)
 
 # The default error hook must terminate deterministically.
 arduinoawait_add_death_test(test_m0_default_error test_m0_default_error.cpp)
+
+# The default deadline-overflow policy must halt (Error::deadline_overflow).
+arduinoawait_add_death_test(test_m1_deadline_overflow test_m1_deadline_overflow_death.cpp)
 
 # Persistent negative-compile regression: including the public header under a
 # pre-C++20 standard must be rejected by the coroutine-support guard. The probe

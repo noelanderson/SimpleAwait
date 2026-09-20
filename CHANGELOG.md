@@ -16,18 +16,27 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   selection verified against the real cores: `time_us_64()` on RP2040/RP2350
   (Arm and RISC-V, selected by `ARDUINO_ARCH_RP2040`), `esp_timer_get_time()` on
   ESP32 (`ARDUINO_ARCH_ESP32`), a software-extended 32-bit `micros()` secondary
-  backend for generic Arduino, a `std::chrono::steady_clock` host default, and an
-  injectable `ARDUINOAWAIT_CLOCK_NOW_US` override for tests. All scheduler timing
-  flows through this one function; no other source calls a platform clock
-  primitive directly.
+  backend for generic Arduino, and an injectable `ARDUINOAWAIT_CLOCK_NOW_US`
+  override for tests. There is no silent host default: a host build must inject a
+  clock (or opt into a `steady_clock` adapter via `ARDUINOAWAIT_HOST_REALTIME_CLOCK`),
+  so a test that forgets injection gets a link error rather than nondeterministic
+  real time. All scheduler timing flows through this one function; no other
+  source calls a platform clock primitive directly.
 - Deadline arithmetic (`src/arduinoawait/detail/time_math.h`): `ms_to_us`
-  widening, an `add_overflows` predicate, and `compute_deadline`, which routes a
+  widening, an `add_overflows` predicate, and `compute_deadline(now, dur, out&)`,
+  which returns a `bool` success indicator (never conflating a valid maximum
+  deadline with failure), writes the deadline only on success, and routes a
   would-be `uint64` overflow to the error hook as `Error::deadline_overflow`
-  (V1 forbids silent wrap/saturation).
+  (V1 forbids silent wrap/saturation). It contains no unreachable code, so it
+  compiles under strict warnings with either the default `[[noreturn]]` hook or a
+  returning override.
 - Host tests for exact/monotonic clock values, the 32-bit extender wrap, ms→us
-  widening, the overflow predicate, and the deadline-overflow policy.
-- `hardware/rp2040/ClockMonotonic` validation sketch (developer tool; not host
-  CI) that exercises the native clock and forces the backend to link.
+  widening, the overflow predicate, the deadline bool contract, the default-hook
+  compile path, and a death test for the default overflow-halt policy.
+- `hardware/ClockMonotonic` validation sketch (developer tool; not host CI) that
+  checks the native clock is monotonic AND advances across `loop()` batches, and
+  which CI compiles on every target so the native backend is linked, not just the
+  header.
 
 ### Added — M0: Repository and build skeleton
 

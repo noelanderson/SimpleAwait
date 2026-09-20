@@ -11,7 +11,9 @@
 //   ARDUINO_ARCH_RP2040        RP2040 and RP2350 (Arm/RISC-V): time_us_64()
 //   ARDUINO_ARCH_ESP32         ESP32 family: esp_timer_get_time()
 //   ARDUINO (generic)          software-extended 32-bit micros() (secondary)
-//   host (none of the above)   std::chrono::steady_clock (host, non-target)
+//   host (none of the above)   no default clock: inject via ARDUINOAWAIT_CLOCK_NOW_US
+//                              (deterministic tests) or opt into a real-time
+//                              adapter with ARDUINOAWAIT_HOST_REALTIME_CLOCK
 //
 // The target-detection macros are the ones the real cores define, verified from
 // the installed Arduino-Pico (ARDUINO_ARCH_RP2040 for every RP2040/RP2350 board;
@@ -97,19 +99,36 @@ inline uint64_t platform_now_us() noexcept {
 } // namespace detail
 } // namespace arduinoawait
 
-#else
+#elif defined(ARDUINOAWAIT_HOST_REALTIME_CLOCK)
 
 #include <chrono>
 namespace arduinoawait {
 namespace detail {
-// Host default (non-target): real monotonic microseconds. Host unit tests inject
-// a deterministic clock via ARDUINOAWAIT_CLOCK_NOW_US instead of using this.
+// Opt-in host real-time backend (non-target): real monotonic microseconds from
+// std::chrono::steady_clock. This is a benchmark/adapter convenience, never the
+// default; deterministic host tests inject a fake clock via
+// ARDUINOAWAIT_CLOCK_NOW_US instead. Desktop support is not broadened beyond
+// deterministic host testing.
 inline uint64_t platform_now_us() noexcept {
     return static_cast<uint64_t>(
         std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now().time_since_epoch())
             .count());
 }
+} // namespace detail
+} // namespace arduinoawait
+
+#else
+
+namespace arduinoawait {
+namespace detail {
+// Host with no backend selected: there is deliberately NO default host clock, so
+// a test that forgets to inject one cannot silently receive nondeterministic
+// real time. Deterministic host tests inject a clock via ARDUINOAWAIT_CLOCK_NOW_US;
+// an explicit real-time adapter is available via ARDUINOAWAIT_HOST_REALTIME_CLOCK.
+// platform_now_us() is declared but not defined here, so *using* the clock
+// without providing one is a link-time error rather than silent real time.
+uint64_t platform_now_us() noexcept;
 } // namespace detail
 } // namespace arduinoawait
 

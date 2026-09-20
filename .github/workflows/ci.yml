@@ -110,6 +110,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             examples/Empty
+      - name: Compile clock validation sketch (links the native clock backend)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            hardware/ClockMonotonic
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

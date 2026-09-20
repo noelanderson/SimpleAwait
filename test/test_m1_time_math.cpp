@@ -37,27 +37,46 @@ static_assert(add_overflows(UINT64_MAX, 1), "max+1");
 static_assert(add_overflows(UINT64_MAX - 10, 11), "just over");
 
 int main() {
-    // Normal deadline computation does not touch the error hook.
+    tick_t out = 0;
+
+    // Success writes the deadline, returns true, and does not touch the hook.
     g_last_error = -1;
-    AA_CHECK(compute_deadline(1000, 500) == 1500);
-    AA_CHECK(compute_deadline(UINT64_MAX - 10, 10) == UINT64_MAX);
+    out = 0;
+    AA_CHECK(compute_deadline(1000, 500, out));
+    AA_CHECK(out == 1500);
+    AA_CHECK(g_last_error == -1);
+
+    // Exactly the maximum representable deadline is valid (not an overflow).
+    out = 0;
+    AA_CHECK(compute_deadline(UINT64_MAX - 10, 10, out));
+    AA_CHECK(out == UINT64_MAX);
     AA_CHECK(g_last_error == -1);
 
     // ms widening feeding a deadline.
-    AA_CHECK(compute_deadline(0, ms_to_us(500)) == 500000ULL);
+    out = 0;
+    AA_CHECK(compute_deadline(0, ms_to_us(500), out));
+    AA_CHECK(out == 500000ULL);
 
-    // Overflow routes to the error hook with deadline_overflow.
+    // Overflow returns false, leaves out untouched, and routes to the hook. The
+    // bool is the unambiguous failure signal (a valid max deadline is not
+    // conflated with failure).
     g_last_error = -1;
-    (void)compute_deadline(UINT64_MAX - 10, 11);
+    out = 0xABCDEFu;
+    AA_CHECK(!compute_deadline(UINT64_MAX - 10, 11, out));
+    AA_CHECK(out == 0xABCDEFu); // unchanged on failure
     AA_CHECK(g_last_error == static_cast<int>(Error::deadline_overflow));
 
     g_last_error = -1;
-    (void)compute_deadline(UINT64_MAX, 1);
+    out = 0xABCDEFu;
+    AA_CHECK(!compute_deadline(UINT64_MAX, 1, out));
+    AA_CHECK(out == 0xABCDEFu);
     AA_CHECK(g_last_error == static_cast<int>(Error::deadline_overflow));
 
-    // A non-overflowing large duration does not trigger the hook.
+    // A non-overflowing maximum duration succeeds without the hook.
     g_last_error = -1;
-    (void)compute_deadline(0, UINT64_MAX);
+    out = 0;
+    AA_CHECK(compute_deadline(0, UINT64_MAX, out));
+    AA_CHECK(out == UINT64_MAX);
     AA_CHECK(g_last_error == -1);
 
     AA_RUN_TESTS();

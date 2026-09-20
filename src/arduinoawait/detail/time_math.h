@@ -29,23 +29,27 @@ constexpr bool add_overflows(tick_t a, tick_t b) noexcept {
 }
 
 // Compute the absolute deadline `now + duration_us` on the monotonic timebase.
-// On overflow, invoke the deterministic error hook with Error::deadline_overflow
-// (V1 forbids silent wrap/saturation). The default hook is [[noreturn]]; if a
-// non-halting override returns, a saturated sentinel (UINT64_MAX) is returned so
-// a caller never observes a wrapped deadline.
-inline tick_t compute_deadline(tick_t now, tick_t duration_us) noexcept {
-#if defined(_MSC_VER)
-#  pragma warning(push)
-#  pragma warning(disable : 4702) // unreachable code after a [[noreturn]] hook
-#endif
-    if (add_overflows(now, duration_us)) {
+//
+// On success, writes the deadline to `out` and returns true. On overflow, it
+// does NOT modify `out`, invokes the deterministic error hook with
+// Error::deadline_overflow (V1 forbids silent wrap/saturation), and returns
+// false. The returned bool is the unambiguous success indicator — the deadline
+// is never conflated with a failure sentinel.
+//
+// The default error hook is [[noreturn]], so a false return is observed only
+// under a non-halting override (e.g. host tests). The function is structured so
+// the single trailing return is reachable via the non-overflow path; there is
+// no unreachable statement after the (possibly [[noreturn]]) hook, so it
+// compiles cleanly under strict warnings with either error policy.
+[[nodiscard]] inline bool compute_deadline(tick_t now, tick_t duration_us,
+                                           tick_t& out) noexcept {
+    const bool overflow = add_overflows(now, duration_us);
+    if (overflow) {
         ARDUINOAWAIT_ON_ERROR(Error::deadline_overflow);
-        return UINT64_MAX;
+    } else {
+        out = now + duration_us;
     }
-    return now + duration_us;
-#if defined(_MSC_VER)
-#  pragma warning(pop)
-#endif
+    return !overflow;
 }
 
 } // namespace detail

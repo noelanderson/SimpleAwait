@@ -30,7 +30,12 @@ static bool s_have_last = false;
 // between batches when the clock is stalled (so the sketch keeps reporting
 // instead of hanging in a clock-dependent delay()).
 static void busy_idle() {
-    for (volatile uint32_t i = 0; i < 2000000u; ++i) {
+    // Non-volatile loop counter with a per-iteration volatile access: keeps the
+    // loop from being optimized away without the C++20-deprecated volatile
+    // compound increment.
+    for (uint32_t i = 0; i < 2000000u; ++i) {
+        volatile uint32_t sink = i;
+        (void)sink;
     }
 }
 

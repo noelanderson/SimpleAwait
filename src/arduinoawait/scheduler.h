@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include "error.h"
+#include "detail/platform_clock.h"
 #include "task.h"
 
 namespace arduinoawait {
@@ -58,11 +59,19 @@ private:
 
 // Free-function scheduling API (V1_API_CONTRACT §6). Declared before Scheduler
 // so the class can grant friendship to the scheduling entry points; the frozen
-// Scheduler surface (§7) therefore does not expose create_task()/spawn().
-[[nodiscard]] TaskHandle create_task(Task<void>&& task) noexcept;
-void spawn(Task<void>&& task) noexcept;
+// Scheduler surface (§7) therefore does not expose create_task()/spawn(). The
+// exception specifications match the frozen contract exactly (create_task/spawn
+// are not noexcept; current_task() is).
+[[nodiscard]] TaskHandle create_task(Task<void>&& task);
+void spawn(Task<void>&& task);
 TaskHandle current_task() noexcept;
 void poll();
+
+namespace detail {
+// Test-only seam: force a scheduler slot's generation, to exercise generation
+// retirement near the uint32 boundary without 2^32 real reuses. NOT public API.
+void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration generation) noexcept;
+} // namespace detail
 
 class Scheduler {
 public:
@@ -71,11 +80,19 @@ public:
     Scheduler& operator=(const Scheduler&) = delete;
 
     ~Scheduler() {
-        // Release any still-owned frames (ready/running/suspended) at shutdown.
+        // Teardown: destroying a suspended coroutine frame runs its by-value
+        // parameter destructors, which may reenter the scheduler (poll() or
+        // create_task()). Guard against that: mark shutdown first (so poll() is a
+        // no-op and schedule() is refused), and detach each slot BEFORE destroying
+        // its frame so a reentrant call can never observe it as still owning a
+        // frame or still linked. Each owned frame is thus destroyed exactly once.
+        shutting_down_ = true;
         for (Slot& s : slots_) {
             if (s.handle && s.state != State::completed) {
-                s.handle.destroy();
+                const std::coroutine_handle<> frame = s.handle;
                 s.handle = {};
+                s.state = State::completed;
+                frame.destroy();
             }
         }
     }
@@ -89,12 +106,16 @@ public:
         return TaskHandle{this, TaskId{index_of(current_), current_->generation}};
     }
 
-    // One bounded scheduler pass (V1 frozen semantics).
+    // One bounded scheduler pass (V1 frozen semantics, ARCHITECTURE §9).
     void poll() {
+        if (shutting_down_) {
+            return; // teardown in progress: never run a pass
+        }
         if (in_poll_) {
             ARDUINOAWAIT_ON_ERROR(Error::scheduler_reentry);
         } else {
             in_poll_ = true;
+            now_ = detail::platform_now_us(); // §9 step 1: sample the 64-bit clock
             run_pass();
             in_poll_ = false;
         }
@@ -106,10 +127,20 @@ public:
 
 private:
     friend class TaskHandle;
-    friend TaskHandle create_task(Task<void>&& task) noexcept;
-    friend void spawn(Task<void>&& task) noexcept;
+    friend TaskHandle create_task(Task<void>&& task);
+    friend void spawn(Task<void>&& task);
+    friend void detail::force_slot_generation(Scheduler&, TaskSlot, TaskGeneration) noexcept;
 
     static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;
+
+    // Every slot index (0..kMaxTasks-1) must be representable in TaskSlot, or a
+    // handle's identity could be aliased by narrowing in index_of() (M1).
+    static_assert(kMaxTasks <= static_cast<size_t>(UINT16_MAX) + 1u,
+                  "ARDUINOAWAIT_MAX_TASKS exceeds the representable TaskSlot range");
+
+    // A slot whose generation reaches this value is retired (never reused) so an
+    // incremented generation can never wrap back onto an earlier live handle (H2).
+    static constexpr TaskGeneration kMaxGeneration = UINT32_MAX;
 
     // Generation-checked identity queries used by TaskHandle.
     bool handle_valid(TaskId id) const noexcept {
@@ -141,16 +172,18 @@ private:
     }
 
     // Acquire a free slot, or reuse the oldest completed tombstone (which bumps
-    // its generation, invalidating older handles). Returns nullptr when full.
+    // its generation, invalidating older handles). A slot at kMaxGeneration is
+    // retired rather than reused, so generations never wrap (H2). Returns nullptr
+    // when full or when every candidate slot's generation is exhausted.
     Slot* acquire_slot() noexcept {
         for (Slot& s : slots_) {
-            if (s.state == State::free) {
+            if (s.state == State::free && s.generation != kMaxGeneration) {
                 ++s.generation;
                 return &s;
             }
         }
         for (Slot& s : slots_) {
-            if (s.state == State::completed) {
+            if (s.state == State::completed && s.generation != kMaxGeneration) {
                 ++s.generation;
                 return &s;
             }
@@ -158,13 +191,18 @@ private:
         return nullptr;
     }
 
+    // On rejection (teardown, empty Task, or slot exhaustion) the passed Task is
+    // left untouched: the caller retains frame ownership and it is released
+    // normally when that Task is destroyed (a temporary at the end of the full
+    // expression). Only success transfers the frame into a slot.
     TaskHandle schedule(Task<void>&& task) noexcept {
         TaskHandle result; // invalid unless scheduling succeeds
-        if (!task) {
+        if (shutting_down_) {
+            // Teardown in progress: refuse silently; the caller retains the Task.
+        } else if (!task) {
             ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
         } else if (Slot* slot = acquire_slot(); slot == nullptr) {
             ARDUINOAWAIT_ON_ERROR(Error::task_limit);
-            // The passed Task's frame is released normally by its destructor.
         } else {
             slot->handle = detail::take_frame(task); // transfer frame ownership
             slot->state = State::ready;
@@ -173,7 +211,7 @@ private:
             ++active_count_;
             result = TaskHandle{this, TaskId{index_of(slot), slot->generation}};
         }
-        return result; // reachable via the success path; no unreachable code after a hook
+        return result; // reachable via the shutdown/success paths; no code after a hook
     }
 
     void ready_push(Slot* slot) noexcept {
@@ -237,6 +275,8 @@ private:
     size_t active_count_ = 0;
     Slot* current_ = nullptr;
     bool in_poll_ = false;
+    bool shutting_down_ = false;
+    [[maybe_unused]] detail::tick_t now_ = 0; // §9 step-1 clock sample; used from M5
 };
 
 inline bool TaskHandle::valid() const noexcept {
@@ -252,13 +292,19 @@ inline Scheduler& scheduler() noexcept {
     return instance;
 }
 
-inline TaskHandle create_task(Task<void>&& task) noexcept {
+inline TaskHandle create_task(Task<void>&& task) {
     return scheduler().schedule(static_cast<Task<void>&&>(task));
 }
-inline void spawn(Task<void>&& task) noexcept {
+inline void spawn(Task<void>&& task) {
     (void)scheduler().schedule(static_cast<Task<void>&&>(task));
 }
 inline TaskHandle current_task() noexcept { return scheduler().currentTask(); }
 inline void poll() { scheduler().poll(); }
+
+namespace detail {
+inline void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration generation) noexcept {
+    sched.slots_[slot].generation = generation;
+}
+} // namespace detail
 
 } // namespace arduinoawait

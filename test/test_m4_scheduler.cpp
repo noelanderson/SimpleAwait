@@ -19,6 +19,12 @@ void operator delete[](void* p) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
 
+// The scheduler samples the 64-bit clock once per poll() pass (ARCHITECTURE §9
+// step 1); inject a deterministic, allocation-free fake so the no-heap canary
+// below stays valid.
+namespace { unsigned long long g_fake_now_us = 0; }
+#define ARDUINOAWAIT_CLOCK_NOW_US() (++g_fake_now_us)
+
 #include <ArduinoAwait.h>
 
 #include "aa_test.h"

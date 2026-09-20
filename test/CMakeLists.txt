@@ -79,6 +79,8 @@ arduinoawait_add_host_test(test_m3_task_exhaustion test_m3_task_exhaustion.cpp)
 arduinoawait_add_host_test(test_m3_ownership_edge test_m3_ownership_edge.cpp)
 arduinoawait_add_host_test(test_m4_scheduler test_m4_scheduler.cpp)
 arduinoawait_add_host_test(test_m4_errors test_m4_errors.cpp)
+arduinoawait_add_host_test(test_m4_poll_clock test_m4_poll_clock.cpp)
+arduinoawait_add_host_test(test_m4_shutdown test_m4_shutdown.cpp)
 
 # The default error hook must terminate deterministically.
 arduinoawait_add_death_test(test_m0_default_error test_m0_default_error.cpp)
@@ -123,6 +125,24 @@ add_test(NAME neg_frame_pool_capacity_rejected
         "-DAA_BUILD_DIR=${CMAKE_BINARY_DIR}"
         "-DAA_TARGET=neg_frame_pool_capacity"
         "-DAA_DIAGNOSTIC=FramePool capacity must fit"
+        "-DAA_CONFIG=$<CONFIG>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
+
+# Persistent negative-compile regression: a task capacity that exceeds the
+# representable TaskSlot range must be rejected by a static_assert rather than
+# silently narrowing a slot index (M4 M1).
+add_executable(neg_scheduler_capacity EXCLUDE_FROM_ALL neg_scheduler_capacity.cpp)
+target_link_libraries(neg_scheduler_capacity PRIVATE arduinoawait::arduinoawait)
+set_target_properties(neg_scheduler_capacity PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF)
+add_test(NAME neg_scheduler_capacity_rejected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DAA_CMAKE=${CMAKE_COMMAND}"
+        "-DAA_BUILD_DIR=${CMAKE_BINARY_DIR}"
+        "-DAA_TARGET=neg_scheduler_capacity"
+        "-DAA_DIAGNOSTIC=ARDUINOAWAIT_MAX_TASKS exceeds"
         "-DAA_CONFIG=$<CONFIG>"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
 

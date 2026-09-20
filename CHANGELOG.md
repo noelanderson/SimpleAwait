@@ -13,11 +13,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   cooperative scheduler. Task state lives in a fixed array of
   `ARDUINOAWAIT_MAX_TASKS` slots (no heap, no `std::` containers); the ready queue
   is an intrusive FIFO threaded through the slots. `poll()` runs one bounded pass
-  with frozen V1 semantics (ARCHITECTURE §9): it snapshots the ready count as the
-  pass budget and resumes each of those tasks at most once, so a task made ready
-  during the pass (e.g. by `spawn()` from within a running task) runs on a later
-  `poll()` and no task ever runs twice in one pass. A completed task's frame is
-  destroyed immediately and its slot becomes a tombstone.
+  with frozen V1 semantics (ARCHITECTURE §9): it samples the 64-bit clock, then
+  snapshots the ready count as the pass budget and resumes each of those tasks at
+  most once, so a task made ready during the pass (e.g. by `spawn()` from within a
+  running task) runs on a later `poll()` and no task ever runs twice in one pass.
+  A completed task's frame is destroyed immediately and its slot becomes a
+  tombstone.
 - `TaskId { TaskSlot slot; TaskGeneration generation; }` and `TaskHandle`
   (frozen V1 surface, V1_API_CONTRACT §5–§6): `TaskHandle` is a copyable,
   non-owning, generation-checked identity. It stays `valid()` after its task
@@ -31,18 +32,33 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   process-wide `scheduler()` singleton. Scheduling an empty/invalid Task invokes
   the deterministic error hook (`Error::invalid_task`); slot exhaustion invokes it
   with `Error::task_limit`; re-entering `poll()` from within a pass invokes it with
-  `Error::scheduler_reentry`. The passed Task's frame is released normally on any
-  rejection. The `Scheduler` public surface is exactly the frozen §7 members
+  `Error::scheduler_reentry`. On any rejection the passed Task is left untouched
+  and the caller retains frame ownership (released normally when that Task is
+  destroyed). `create_task()`/`spawn()` match the frozen §6 signatures exactly
+  (not `noexcept`); the `Scheduler` public surface is exactly the frozen §7 members
   (`poll`, `hasReadyTasks`, `hasPendingTasks`, `activeTaskCount`, `currentTask`);
   scheduling is reached through the free functions.
+- Lifetime/robustness hardening (from independent review): destroying a suspended
+  frame runs its by-value parameter destructors, so scheduler teardown marks a
+  shutdown state (making `poll()` a no-op and refusing `schedule()`) and detaches
+  each slot before destroying its frame — a reentrant destructor cannot resume a
+  frame being destroyed or double-free it. Generation counters retire a slot at
+  `UINT32_MAX` instead of wrapping, so a rolled-over generation can never resurrect
+  an earlier handle. A compile-time check rejects `ARDUINOAWAIT_MAX_TASKS` beyond
+  the representable `TaskSlot` range.
 - Host tests: `test_m4_scheduler` (explicit scheduling and lazy bodies, detached
   `spawn`, FIFO run order, the bounded pass budget — a task created mid-pass runs
   on the next pass and none runs twice — `current_task()` inside vs outside a
   task, and a global `operator new`/`delete` canary proving the scheduler and
-  frames never touch the heap) and `test_m4_errors` (single-slot `task_limit`
-  exhaustion, slot reuse bumping the generation and invalidating the stale handle,
-  and the `scheduler_reentry` guard), each via a recording error hook. Pass on
-  MSVC and Clang 23.1.1 at C++20 and C++23.
+  frames never touch the heap); `test_m4_errors` (empty/moved-from rejection,
+  single-slot `task_limit` exhaustion, slot reuse bumping the generation and
+  invalidating the stale handle, the `scheduler_reentry` guard, and generation
+  retirement at the `uint32` boundary via a test-only seam); `test_m4_poll_clock`
+  (exactly one clock sample per accepted pass, none for a rejected nested poll);
+  and `test_m4_shutdown` (a reentrant-teardown regression: a pending task whose
+  by-value parameter destructor reenters the scheduler at singleton destruction —
+  no double-free, no body execution, scheduling refused). A negative-compile test
+  asserts the capacity check. All pass on MSVC and Clang 23.1.1 at C++20 and C++23.
 - Golden examples: `examples/02_TwoTasks` (two tasks scheduled concurrently and
   run by a single `poll()` pass, using only the M4 API) and `examples/01_Blink`
   (the M4 structural skeleton; its `delay()`-driven blink body is completed at

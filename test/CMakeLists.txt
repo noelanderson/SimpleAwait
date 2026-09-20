@@ -9,6 +9,8 @@
 option(ARDUINOAWAIT_ENABLE_SANITIZERS
     "Build ArduinoAwait host tests with ASan/UBSan (GCC/Clang)" OFF)
 
+find_package(Python3 COMPONENTS Interpreter)
+
 # Language standards to build every test under.
 set(_aa_standards 20)
 if("cxx_std_23" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
@@ -47,15 +49,20 @@ function(arduinoawait_add_host_test test_name)
 endfunction()
 
 # arduinoawait_add_death_test(<name> <source>)
-#   Like a host test, but the program is expected to terminate abnormally
-#   (nonzero exit); registered WILL_FAIL so a clean exit reports a regression.
+#   Builds a program expected to terminate abnormally, driven through a CMake
+#   wrapper that recognizes an abort/non-zero exit AND requires the program to
+#   have reached the error hook. This is portable across POSIX (SIGABRT) and
+#   Windows (exit 3), unlike CTest WILL_FAIL which does not reliably invert
+#   signal-based termination.
 function(arduinoawait_add_death_test test_name source)
     foreach(_std IN LISTS _aa_standards)
         set(_target "${test_name}_cpp${_std}")
         add_executable("${_target}" "${source}")
         _aa_setup_test_target("${_target}" ${_std})
-        add_test(NAME "${_target}" COMMAND "${_target}")
-        set_tests_properties("${_target}" PROPERTIES WILL_FAIL TRUE)
+        add_test(NAME "${_target}"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DAA_EXE=$<TARGET_FILE:${_target}>"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/run_death_test.cmake")
     endforeach()
 endfunction()
 
@@ -70,7 +77,10 @@ arduinoawait_add_death_test(test_m0_default_error test_m0_default_error.cpp)
 # Persistent negative-compile regression: including the public header under a
 # pre-C++20 standard must be rejected by the coroutine-support guard. The probe
 # does NOT link the arduinoawait interface target (which would raise the standard
-# floor to C++20); it only adds the include path and is pinned to C++17.
+# floor to C++20); it only adds the include path and is pinned to C++17. The
+# wrapper requires the build to fail WITH the coroutine-support diagnostic (not
+# merely to fail) and forwards the build configuration for multi-config
+# generators.
 add_executable(neg_coroutine_probe EXCLUDE_FROM_ALL neg_coroutine_probe.cpp)
 target_include_directories(neg_coroutine_probe PRIVATE "${CMAKE_SOURCE_DIR}/src")
 set_target_properties(neg_coroutine_probe PROPERTIES
@@ -78,5 +88,16 @@ set_target_properties(neg_coroutine_probe PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF)
 add_test(NAME neg_coroutine_support_rejected
-    COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" --target neg_coroutine_probe)
-set_tests_properties(neg_coroutine_support_rejected PROPERTIES WILL_FAIL TRUE)
+    COMMAND "${CMAKE_COMMAND}"
+        "-DAA_CMAKE=${CMAKE_COMMAND}"
+        "-DAA_BUILD_DIR=${CMAKE_BINARY_DIR}"
+        "-DAA_CONFIG=$<CONFIG>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
+
+# Metadata gate self-test (fail-closed behavior of lint_metadata_gate.py).
+if(Python3_FOUND)
+    add_test(NAME test_lint_gate
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_lint_gate.py")
+else()
+    message(STATUS "Python3 not found; skipping metadata gate self-test")
+endif()

@@ -36,16 +36,24 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   per-iteration `volatile` access so the deterministic halt loop is preserved
   under the C++20 forward-progress rules ([intro.progress]) at every
   optimization level, without relying on the later P2809 fix.
-- Added host tests: a two-translation-unit ODR check (inline version constant
-  and error-handler template each have one definition program-wide), a death
-  test proving the default error hook terminates deterministically, and a
-  persistent negative-compile probe asserting the coroutine-support guard
-  rejects a pre-C++20 build.
-- Reworked the metadata CI job into a documented gate that runs arduino-lint at
+- Added host tests, driven by portable CMake wrappers so they behave correctly
+  across single- and multi-config generators and POSIX/Windows: a
+  two-translation-unit ODR check (inline version constant and error-handler
+  template each have one definition program-wide); a death test proving the
+  default error hook terminates abnormally after reaching the hook (replacing a
+  CTest `WILL_FAIL`, which does not reliably invert SIGABRT on POSIX); a
+  persistent negative-compile probe that must fail *with* the coroutine-support
+  diagnostic (rejecting unrelated/infrastructure build failures) and forwards
+  the build configuration; and a self-test for the metadata gate.
+- Reworked the metadata CI job into a documented gate
+  (`.github/scripts/lint_metadata_gate.py`) that runs arduino-lint at
   specification compliance and fails on any error except the intentional
   `LP012` "Arduino" name-prefix deviation inherent to the fixed project name
-  (the maintainer name-prefix remains a non-blocking warning); corrected the
-  README example-build commands (`--library .`) and coverage wording.
+  (the maintainer name-prefix remains a non-blocking warning). The gate fails
+  closed on malformed/empty/non-library reports; the CI step installs
+  arduino-lint correctly and distinguishes a linter crash from ordinary rule
+  errors. Corrected the README example-build commands (`--library .`) and
+  coverage wording.
 
 No coroutine scheduling is implemented at M0.
 

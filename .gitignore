@@ -26,6 +26,10 @@ Testing/
 .vscode/
 .idea/
 
+# Python caches (test tooling / gate self-test)
+__pycache__/
+*.pyc
+
 # Arduino / PlatformIO build output
 /.pio/
 /examples/**/build/

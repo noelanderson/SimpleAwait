@@ -7,6 +7,48 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M4: Cooperative scheduler, TaskHandle, ready FIFO
+
+- `arduinoawait::Scheduler` (`src/arduinoawait/scheduler.h`): a fixed-memory
+  cooperative scheduler. Task state lives in a fixed array of
+  `ARDUINOAWAIT_MAX_TASKS` slots (no heap, no `std::` containers); the ready queue
+  is an intrusive FIFO threaded through the slots. `poll()` runs one bounded pass
+  with frozen V1 semantics (ARCHITECTURE §9): it snapshots the ready count as the
+  pass budget and resumes each of those tasks at most once, so a task made ready
+  during the pass (e.g. by `spawn()` from within a running task) runs on a later
+  `poll()` and no task ever runs twice in one pass. A completed task's frame is
+  destroyed immediately and its slot becomes a tombstone.
+- `TaskId { TaskSlot slot; TaskGeneration generation; }` and `TaskHandle`
+  (frozen V1 surface, V1_API_CONTRACT §5–§6): `TaskHandle` is a copyable,
+  non-owning, generation-checked identity. It stays `valid()` after its task
+  completes (`done()` returns true) until the slot is reused; slot reuse
+  increments the generation, so an older handle to a reused slot becomes
+  `valid() == false`. A default/stale handle reports `valid() == false` and
+  `done() == false`.
+- Free-function scheduling API: `create_task()` (returns an observable
+  `[[nodiscard]] TaskHandle`), `spawn()` (detached), `current_task()` (the task
+  being resumed, or invalid outside a pass), and `poll()` — all driving the
+  process-wide `scheduler()` singleton. Scheduling an empty/invalid Task invokes
+  the deterministic error hook (`Error::invalid_task`); slot exhaustion invokes it
+  with `Error::task_limit`; re-entering `poll()` from within a pass invokes it with
+  `Error::scheduler_reentry`. The passed Task's frame is released normally on any
+  rejection. The `Scheduler` public surface is exactly the frozen §7 members
+  (`poll`, `hasReadyTasks`, `hasPendingTasks`, `activeTaskCount`, `currentTask`);
+  scheduling is reached through the free functions.
+- Host tests: `test_m4_scheduler` (explicit scheduling and lazy bodies, detached
+  `spawn`, FIFO run order, the bounded pass budget — a task created mid-pass runs
+  on the next pass and none runs twice — `current_task()` inside vs outside a
+  task, and a global `operator new`/`delete` canary proving the scheduler and
+  frames never touch the heap) and `test_m4_errors` (single-slot `task_limit`
+  exhaustion, slot reuse bumping the generation and invalidating the stale handle,
+  and the `scheduler_reentry` guard), each via a recording error hook. Pass on
+  MSVC and Clang 23.1.1 at C++20 and C++23.
+- Golden examples: `examples/02_TwoTasks` (two tasks scheduled concurrently and
+  run by a single `poll()` pass, using only the M4 API) and `examples/01_Blink`
+  (the M4 structural skeleton; its `delay()`-driven blink body is completed at
+  M5). `hardware/SchedulerRun` validation sketch runs the scheduler across many
+  passes on-target. All compile for RP2040, RP2350 (Arm and RISC-V).
+
 ### Added — M3: Lazy Task<void> and ownership
 
 - `arduinoawait::Task<void>` (`src/arduinoawait/task.h`): a lazy, move-only

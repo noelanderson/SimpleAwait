@@ -17,6 +17,14 @@ Current sketches:
 - `FramePoolCheck/` — M2: allocates and frees frames (including an over-aligned
   one) and confirms full recovery, forcing the allocator to compile and link for
   the target's word size and alignment.
+- `TaskLifecycle/` — M3: creates and destroys an unscheduled lazy `Task<void>` and
+  confirms its coroutine frame is taken from the pool and returned on destruction
+  (full recovery), exercising the coroutine promise's pool-backed
+  `operator new`/`delete` for the target's coroutine ABI.
+- `SchedulerRun/` — M4: drives the fixed-slot scheduler through many bounded
+  `poll()` passes, confirming FIFO run order, `current_task()` inside/outside a
+  pass, `TaskHandle::done()` after completion, and slot reuse across passes with a
+  bounded active-task count and no heap use.
 
 Additional target-specific validation is added as later milestones land (for
 example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).

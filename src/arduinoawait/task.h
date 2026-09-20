@@ -32,6 +32,11 @@ class Task;
 namespace detail {
 template <class>
 inline constexpr bool task_type_unsupported = false;
+
+// Transfers the coroutine frame out of a Task, leaving the Task empty. Used by
+// the scheduler to take ownership when a Task is scheduled. Defined after
+// Task<void>.
+std::coroutine_handle<> take_frame(Task<void>& task) noexcept;
 } // namespace detail
 
 // Primary template: any Task<T> other than Task<void> is unsupported in V1.
@@ -80,6 +85,8 @@ public:
 
 private:
     explicit Task(handle_type h) noexcept : handle_(h) {}
+
+    friend std::coroutine_handle<> detail::take_frame(Task<void>&) noexcept;
 
     // Destroy the owned frame, if any, exactly once. Destroying a suspended
     // (never-resumed) coroutine still runs its by-value parameters' destructors
@@ -136,5 +143,13 @@ private:
         return p; // reachable via the success path; no unreachable code after the hook
     }
 };
+
+namespace detail {
+inline std::coroutine_handle<> take_frame(Task<void>& task) noexcept {
+    const std::coroutine_handle<> frame = task.handle_;
+    task.handle_ = {};
+    return frame;
+}
+} // namespace detail
 
 } // namespace arduinoawait

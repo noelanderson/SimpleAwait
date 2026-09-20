@@ -128,6 +128,24 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             hardware/TaskLifecycle
+      - name: Compile scheduler validation sketch (fixed-slot scheduler + poll)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            hardware/SchedulerRun
+      - name: Compile 01_Blink golden example (M4 skeleton)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            examples/01_Blink
+      - name: Compile 02_TwoTasks golden example
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            examples/02_TwoTasks
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

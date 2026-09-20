@@ -15,7 +15,10 @@ This gate keeps the metadata check meaningful AND fails closed:
   * it fails on ANY error-level rule failure other than the accepted LP012
     deviation, so genuine metadata regressions still break the build; and
   * it rejects a malformed, empty, or non-library report instead of silently
-    passing, so a crashed/short-circuited linter cannot certify the metadata.
+    passing, so a crashed/short-circuited linter cannot certify the metadata; and
+  * it rejects unknown rule result/level values and a report whose summary
+    errorCount disagrees with the inspected error-level failures, so a
+    schema-invalid or internally inconsistent report cannot slip through.
 
 A legitimately clean library project has no failing rules; that is accepted.
 LP012 is NOT required to be present (only tolerated when it is).
@@ -32,6 +35,12 @@ import sys
 # Rule IDs whose ERROR-level failure is an accepted, documented deviation.
 ACCEPTED_ERROR_IDS = {"LP012"}
 
+# Schema enums for the pinned arduino-lint 1.3.0 JSON output. Unknown values are
+# treated as a malformed report and fail closed, rather than silently bypassing
+# the exact "fail"/"ERROR" comparisons below (e.g. "FAIL" or "error").
+_ALLOWED_RESULTS = {"pass", "fail", "skipped", "unable to run"}
+_ALLOWED_LEVELS = {"INFO", "WARNING", "ERROR", "NOTICE"}
+
 
 def _error(message):
     print(f"::error::{message}")
@@ -40,8 +49,9 @@ def _error(message):
 def evaluate(report):
     """Return a process exit code for the parsed arduino-lint *report*.
 
-    Fails closed: structural problems or the absence of an audited library
-    project are treated as failures, not as an implicit pass.
+    Fails closed: structural problems, unknown schema values, an internally
+    inconsistent error count, or the absence of an audited library project are
+    all treated as failures, not as an implicit pass.
     """
     if not isinstance(report, dict):
         _error("arduino-lint report is not a JSON object")
@@ -50,6 +60,16 @@ def evaluate(report):
     projects = report.get("projects")
     if not isinstance(projects, list) or not projects:
         _error("arduino-lint report has no projects to evaluate")
+        return 1
+
+    summary = report.get("summary")
+    if not isinstance(summary, dict):
+        _error("arduino-lint report has no summary object")
+        return 1
+    reported_errors = summary.get("errorCount")
+    # bool is a subclass of int; reject it explicitly.
+    if not isinstance(reported_errors, int) or isinstance(reported_errors, bool):
+        _error("arduino-lint report summary is missing an integer errorCount")
         return 1
 
     saw_library = False
@@ -75,9 +95,14 @@ def evaluate(report):
             rule_id = rule.get("ID")
             result = rule.get("result")
             level = rule.get("level")
-            if not (isinstance(rule_id, str) and isinstance(result, str)
-                    and isinstance(level, str)):
-                _error("arduino-lint rule record is missing ID/result/level")
+            if not (isinstance(rule_id, str) and rule_id):
+                _error("arduino-lint rule record has a missing or empty ID")
+                return 1
+            if result not in _ALLOWED_RESULTS:
+                _error(f"arduino-lint rule {rule_id} has an unknown result value: {result!r}")
+                return 1
+            if level not in _ALLOWED_LEVELS:
+                _error(f"arduino-lint rule {rule_id} has an unknown level value: {level!r}")
                 return 1
             if result == "fail" and level == "ERROR":
                 if rule_id in ACCEPTED_ERROR_IDS:
@@ -87,6 +112,13 @@ def evaluate(report):
 
     if not saw_library:
         _error("arduino-lint report audited no library project")
+        return 1
+
+    total_errors = len(accepted) + len(unexpected)
+    if total_errors != reported_errors:
+        _error("arduino-lint report is internally inconsistent: summary "
+               f"errorCount={reported_errors} but {total_errors} error-level "
+               "failure(s) were found")
         return 1
 
     for rule in accepted:
@@ -101,8 +133,9 @@ def evaluate(report):
         print(f"FAILED: {len(unexpected)} unexpected metadata error(s).")
         return 1
 
-    print("Metadata OK: audited a library project; only documented deviations "
-          f"present ({len(accepted)} accepted error(s)).")
+    print("Metadata OK: audited a library project; report is internally "
+          f"consistent; only documented deviations present ({len(accepted)} "
+          "accepted error(s)).")
     return 0
 
 

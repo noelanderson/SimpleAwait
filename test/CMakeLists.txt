@@ -98,6 +98,26 @@ add_test(NAME neg_coroutine_support_rejected
     COMMAND "${CMAKE_COMMAND}"
         "-DAA_CMAKE=${CMAKE_COMMAND}"
         "-DAA_BUILD_DIR=${CMAKE_BINARY_DIR}"
+        "-DAA_TARGET=neg_coroutine_probe"
+        "-DAA_DIAGNOSTIC=ArduinoAwait requires C++20 or later with standard coroutine support"
+        "-DAA_CONFIG=$<CONFIG>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
+
+# Persistent negative-compile regression: a FramePool capacity that does not fit
+# the 32-bit block header fields must be rejected by a static_assert. On the
+# 64-bit host this instantiates a >4 GiB capacity.
+add_executable(neg_frame_pool_capacity EXCLUDE_FROM_ALL neg_frame_pool_capacity.cpp)
+target_link_libraries(neg_frame_pool_capacity PRIVATE arduinoawait::arduinoawait)
+set_target_properties(neg_frame_pool_capacity PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF)
+add_test(NAME neg_frame_pool_capacity_rejected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DAA_CMAKE=${CMAKE_COMMAND}"
+        "-DAA_BUILD_DIR=${CMAKE_BINARY_DIR}"
+        "-DAA_TARGET=neg_frame_pool_capacity"
+        "-DAA_DIAGNOSTIC=FramePool capacity must fit"
         "-DAA_CONFIG=$<CONFIG>"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
 

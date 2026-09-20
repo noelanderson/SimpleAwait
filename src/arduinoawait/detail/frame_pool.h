@@ -48,6 +48,8 @@ class FramePool {
 
     static_assert(kHeader % kAlign == 0, "header slot must be a multiple of kAlign");
     static_assert(Bytes >= kHeader + kAlign, "FramePool capacity too small");
+    static_assert(kUsable <= UINT32_MAX,
+                  "FramePool capacity must fit the 32-bit block header fields");
 
 public:
     FramePool() noexcept { reset(); }
@@ -66,12 +68,19 @@ public:
         allocationFailures_ = 0;
     }
 
-    // Allocate `size` bytes aligned to at least `align` (rounded up to kAlign).
-    // Returns a suitably aligned pointer, or nullptr on exhaustion (recording a
-    // failure). Never allocates from the global heap.
+    // Allocate `size` bytes aligned to at least `align`. `align` must be a power
+    // of two; a value below alignof(std::max_align_t) (including 0) means "use the
+    // default alignment". Returns a suitably aligned pointer, or nullptr on
+    // exhaustion or an invalid (non-power-of-two) alignment, recording a failure.
+    // Never allocates from the global heap, and never forms an out-of-arena
+    // pointer or overflows on an oversized request.
     [[nodiscard]] void* allocate(size_t size, size_t align = kAlign) noexcept {
         if (align < kAlign) {
             align = kAlign;
+        }
+        if (!is_power_of_two(align)) {
+            ++allocationFailures_;
+            return nullptr;
         }
 
         size_t off = 0;
@@ -80,13 +89,20 @@ public:
             const size_t blkSize = blk->size;
 
             if (!blk->allocated) {
-                std::byte* const start = storage_ + off;
-                std::byte* const payload = align_up_ptr(start + kHeader, align);
-                const size_t payloadOffset =
-                    static_cast<size_t>(payload - start);
-                const size_t needed = round_up(payloadOffset + size, kAlign);
+                // Aligned payload offset within the block, computed with integer
+                // address math only — no pointer is formed until the allocation
+                // is known to fit inside the block.
+                const uintptr_t startAddr =
+                    reinterpret_cast<uintptr_t>(storage_) + off;
+                const size_t pad = align_padding(startAddr + kHeader, align);
+                const size_t payloadOffset = kHeader + pad;
 
-                if (needed <= blkSize) {
+                // Fits iff header + padding + size <= blkSize, checked
+                // subtractively so an oversized (even SIZE_MAX) request cannot
+                // wrap into a false success.
+                if (payloadOffset <= blkSize && size <= blkSize - payloadOffset) {
+                    const size_t used = payloadOffset + size; // <= blkSize
+                    const size_t needed = round_up(used, kAlign); // <= blkSize
                     const size_t remainder = blkSize - needed;
                     if (remainder >= kHeader + kAlign) {
                         ::new (static_cast<void*>(storage_ + off + needed))
@@ -100,7 +116,7 @@ public:
                     if (bytesUsed_ > peakBytesUsed_) {
                         peakBytesUsed_ = bytesUsed_;
                     }
-                    return static_cast<void*>(payload);
+                    return static_cast<void*>(storage_ + off + payloadOffset);
                 }
             }
 
@@ -154,11 +170,18 @@ private:
         return std::launder(reinterpret_cast<BlockHeader*>(storage_ + off));
     }
 
-    static std::byte* align_up_ptr(std::byte* p, size_t align) noexcept {
-        const uintptr_t v = reinterpret_cast<uintptr_t>(p);
-        const uintptr_t aligned =
-            (v + (align - 1)) & ~static_cast<uintptr_t>(align - 1);
-        return p + (aligned - v);
+    static constexpr bool is_power_of_two(size_t v) noexcept {
+        return v != 0 && (v & (v - 1)) == 0;
+    }
+
+    // Bytes of padding to bring the address value `addr` up to the next multiple
+    // of `align` (a power of two). Pure integer math on the address value: no
+    // pointer is formed, so it is safe even when the aligned address would fall
+    // outside the arena (the caller validates the fit before forming a pointer).
+    static size_t align_padding(uintptr_t addr, size_t align) noexcept {
+        const uintptr_t mask = static_cast<uintptr_t>(align) - 1;
+        return static_cast<size_t>(
+            (static_cast<uintptr_t>(align) - (addr & mask)) & mask);
     }
 
     static constexpr size_t round_up(size_t v, size_t a) noexcept {

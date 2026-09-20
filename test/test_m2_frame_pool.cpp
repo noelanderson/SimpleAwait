@@ -39,6 +39,8 @@ constexpr std::size_t kMaxAlign = alignof(std::max_align_t);
 } // namespace
 
 int main() {
+    const unsigned long long newAtStart = g_global_new_calls;
+
     // ---- basic alloc/free with full recovery and no global allocation ----
     {
         FramePool<4096> pool;
@@ -170,6 +172,73 @@ int main() {
         AA_CHECK(pool.bytesFree() == pool.capacity());
         AA_CHECK(pool.peakBytesUsed() == peak); // peak is a high-water mark
     }
+
+    // ---- oversized / overflow-inducing requests fail cleanly (no corruption) ----
+    {
+        FramePool<256> pool;
+        const std::size_t before = pool.allocationFailures();
+
+        AA_CHECK(pool.allocate(SIZE_MAX) == nullptr);
+        AA_CHECK(pool.allocate(SIZE_MAX - (pool.blockOverhead() - 1)) == nullptr);
+        AA_CHECK(pool.allocate(pool.capacity()) == nullptr); // no room for a header
+        AA_CHECK(pool.bytesUsed() == 0);                     // arena untouched
+        AA_CHECK(pool.allocationFailures() == before + 3);
+
+        // The pool is still fully intact: an exact-capacity cycle still works.
+        void* whole = pool.allocate(pool.capacity() - pool.blockOverhead());
+        AA_CHECK(whole != nullptr);
+        AA_CHECK(pool.bytesUsed() == pool.capacity());
+        pool.deallocate(whole);
+        AA_CHECK(pool.bytesUsed() == 0);
+    }
+
+    // ---- over-aligned request in a tiny pool never forms an out-of-arena ptr ----
+    // Whether a 128/256-aligned block fits a 64-byte pool depends on the pool's
+    // runtime address, so we assert the INVARIANT (aligned and usable, or null;
+    // pool always intact) rather than a fixed outcome. ASan/UBSan (CI) confirms no
+    // out-of-bounds pointer is ever formed on the miss path.
+    {
+        FramePool<64> pool;
+        const std::size_t aligns[] = {std::size_t(128), std::size_t(256)};
+        for (std::size_t align : aligns) {
+            void* p = pool.allocate(1, align);
+            if (p != nullptr) {
+                AA_CHECK(is_aligned(p, align));
+                *static_cast<unsigned char*>(p) = 0x11; // usable region
+                pool.deallocate(p);
+            }
+            AA_CHECK(pool.bytesUsed() == 0);
+        }
+
+        // A request whose size alone cannot fit is a deterministic miss.
+        const std::size_t before = pool.allocationFailures();
+        AA_CHECK(pool.allocate(pool.capacity(), 128) == nullptr);
+        AA_CHECK(pool.allocationFailures() == before + 1);
+        AA_CHECK(pool.bytesUsed() == 0);
+
+        void* p = pool.allocate(1); // a default-aligned small allocation still works
+        AA_CHECK(p != nullptr);
+        pool.deallocate(p);
+        AA_CHECK(pool.bytesUsed() == 0);
+    }
+
+    // ---- invalid (non-power-of-two) alignment is rejected; 0 means default ----
+    {
+        FramePool<256> pool;
+        const std::size_t before = pool.allocationFailures();
+        AA_CHECK(pool.allocate(16, 48) == nullptr); // 48 is not a power of two
+        AA_CHECK(pool.allocate(16, 24) == nullptr);
+        AA_CHECK(pool.allocationFailures() == before + 2);
+
+        void* z = pool.allocate(16, 0); // 0 -> default alignment
+        AA_CHECK(z != nullptr);
+        AA_CHECK(is_aligned(z, kMaxAlign));
+        pool.deallocate(z);
+        AA_CHECK(pool.bytesUsed() == 0);
+    }
+
+    // The pool never touched the global heap across ANY operation above.
+    AA_CHECK(g_global_new_calls == newAtStart);
 
     AA_RUN_TESTS();
 }

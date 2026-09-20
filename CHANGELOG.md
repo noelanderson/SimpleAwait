@@ -17,16 +17,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   up to and beyond `alignof(std::max_align_t)` (over-aligned requests are padded
   within the block). Exhaustion is deterministic: `allocate()` returns `nullptr`
   and records a failure rather than allocating from the heap (the caller applies
-  the `Error::frame_pool_exhausted` policy in a later milestone). Block headers
-  live in the arena and are created with placement `new` / re-accessed through
-  `std::launder` for well-defined object lifetime. Stats: `bytesUsed`,
-  `bytesFree`, `peakBytesUsed`, `allocationFailures`, `capacity`, `blockOverhead`.
+  the `Error::frame_pool_exhausted` policy in a later milestone). Requests are
+  robust: oversized/overflowing sizes are rejected with checked subtractive
+  arithmetic, over-aligned requests compute padding as integers (never forming an
+  out-of-arena pointer before the fit is validated), a non-power-of-two alignment
+  is rejected, and a capacity that would not fit the 32-bit block header fields is
+  a compile error. Block headers live in the arena and are created with placement
+  `new` / re-accessed through `std::launder` for well-defined object lifetime.
+  Stats: `bytesUsed`, `bytesFree`, `peakBytesUsed`, `allocationFailures`,
+  `capacity`, `blockOverhead`.
 - Host test covering exact-capacity allocation, many small frames, mixed sizes
   with non-overlap, arbitrary destruction order, fragmentation/coalescing with
-  full recovery, over-aligned requests, deterministic exhaustion, peak tracking,
-  and a global `operator new`/`delete` canary proving the pool never touches the
-  heap. (Clang ASan/UBSan run in CI; MSVC ASan is environmentally blocked on the
-  dev host.)
+  full recovery, over-aligned requests, oversized/overflow requests, invalid
+  alignment, deterministic exhaustion, peak tracking, and a whole-test global
+  `operator new`/`delete` canary proving the pool never touches the heap. A
+  persistent negative-compile test asserts the capacity static_assert. (Clang
+  ASan/UBSan run in CI; MSVC ASan is environmentally blocked on the dev host.)
 - `hardware/FramePoolCheck` validation sketch (developer tool; not host CI) that
   exercises the allocator on-target and, via CI, compiles/links it for every
   target's word size and alignment.

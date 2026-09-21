@@ -7,6 +7,44 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M9: Queue<T, Capacity>
+
+- `arduinoawait::Queue<T, Capacity>` (`src/arduinoawait/queue.h`) — the frozen V1
+  bounded, scheduler-local FIFO with blocking `send`/`receive` (V1_API_CONTRACT §11,
+  ARCHITECTURE §17). `co_await q.send(v)` completes immediately when a receiver is
+  waiting (direct hand-off) or capacity exists, else the sender suspends in FIFO
+  order carrying its value on its own coroutine frame; `co_await q.receive()`
+  completes immediately when data is buffered, else the receiver suspends in FIFO
+  order. A receive that frees a slot admits the oldest waiting sender (its value
+  moves to the tail, preserving send order); a send that finds a waiting receiver
+  hands the value straight to it. Wakeups ENQUEUE tasks (they never inline-resume),
+  matching the §9 poll() model. `trySend`/`tryReceive` are the non-suspending
+  variants; `empty`/`full`/`size`/`capacity` are observers. Storage is a fixed ring
+  of `alignas(T)` raw cells with placement construction/destruction, so `T` need not
+  be default-constructible and no global heap is used; move-only and
+  non-default-constructible payloads are supported. There are no ISR methods in V1.
+  A foreign/nested await (the awaiting coroutine is not the running task) is rejected
+  with `invalid_task` rather than stranded; destroying a queue with parked senders or
+  receivers raises `object_destroyed_with_waiters`. `Queue` is a friend of
+  `Scheduler` (reusing `running_is()`/`park_running()`/`wake_slot()`), so the frozen
+  §7 scheduler surface is unchanged.
+- Host tests (MSVC + Clang 23.1.1, C++20 and C++23): `test_m9_queue` (basic
+  try/await send+receive; full-trySend failure; empty-receive and full-send
+  suspension with deferred, never-inline wakeups; FIFO value order; FIFO sender and
+  receiver waiter order; ring-index wrapping; a 1000-item producer/consumer stress;
+  move-only `unique_ptr` and non-default-constructible payloads; exactly-once
+  construction/destruction including a non-empty destroy; and a no-heap canary over
+  the trivial-payload mechanics) and `test_m9_errors` (destroy-with-parked-sender and
+  destroy-with-parked-receiver -> `object_destroyed_with_waiters`; foreign
+  receive-on-empty and send-on-full -> `invalid_task`, not stranded, no state
+  mutation).
+- Golden example `examples/07_QueueProducerConsumer` (a producer and a slower
+  consumer exchange values through a bounded queue with automatic back-pressure) and
+  `hardware/QueueProducerConsumer` validation sketch (a producer/consumer pair over a
+  small queue verifies strict FIFO order on device and reports IN-ORDER/OUT-OF-ORDER).
+  Both compile for RP2040 and RP2350 (Arm and RISC-V); CI adds them to the compile
+  matrix.
+
 ### Added — M8: ThreadSafeFlag and external/IRQ signaling
 
 - `arduinoawait::ThreadSafeFlag` (`src/arduinoawait/threadsafeflag.h`) — the frozen

@@ -150,6 +150,8 @@ private:
     friend bool detail::start_child(std::coroutine_handle<>, std::coroutine_handle<>) noexcept;
     friend class Event;
     friend class ThreadSafeFlag;
+    template <class T, size_t Capacity>
+    friend class Queue;
     friend void detail::poll_external_signals() noexcept;
 
     static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;

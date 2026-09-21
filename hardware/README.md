@@ -50,6 +50,13 @@ Current sketches:
   pass/fail evidence that an ISR reliably wakes a waiting coroutine without resuming
   coroutine code from the ISR. On-device RUN is a pre-V1-release gate (AGENTS.md
   §16); host CI only compiles it.
+- `QueueProducerConsumer/` — M9: a producer sends a monotonically increasing
+  counter into a small bounded `Queue<uint32_t,4>`; a consumer receives and checks
+  strict FIFO order. The small capacity forces both full-send and empty-receive
+  suspension, and the ever-growing counter wraps the ring many times; a reporter
+  prints an IN-ORDER / OUT-OF-ORDER verdict. Forces the Queue path (aligned ring
+  storage, sender/receiver wait sets, direct hand-off, back-pressure) to compile,
+  link, and run on device.
 
 Additional target-specific validation is added as later milestones land (for
 example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).

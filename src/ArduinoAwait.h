@@ -17,13 +17,13 @@
 //  See docs/arduinoawait/V1_API_CONTRACT.md for the frozen public API and
 //  docs/arduinoawait/ARCHITECTURE.md for the normative design.
 //
-//  Milestone status: M8 (ThreadSafeFlag + external signaling). Adds the external-
-//  context bridge on top of M7: a single-waiter, auto-reset, coalescing
-//  ThreadSafeFlag whose set() is safe from a supported IRQ/callback/other-core
-//  context (short platform critical section; never resumes coroutine code), plus a
-//  scheduler external-pending marker resolved at the start of poll() (§9 step 4).
-//  Queue and waitUntil arrive in later milestones without changing this include
-//  path.
+//  Milestone status: M9 (Queue<T, Capacity>). Adds the bounded, scheduler-local
+//  FIFO with blocking send/receive on top of M8: FIFO values and FIFO sender/
+//  receiver waiters over fixed aligned ring storage (no heap, no default-
+//  constructibility requirement), with trySend/tryReceive and automatic
+//  back-pressure. Wakeups enqueue tasks (never inline-resume) per the §9 poll()
+//  model, and there are no ISR methods in V1. waitUntil and final V1 integration
+//  arrive in later milestones without changing this include path.
 // ============================================================================
 
 // Compile-time coroutine support verification. Must come first so an
@@ -60,6 +60,9 @@
 
 // ThreadSafeFlag: single-waiter external/IRQ-context signal bridge.
 #include "arduinoawait/threadsafeflag.h"
+
+// Queue<T, Capacity>: bounded, scheduler-local FIFO with blocking send/receive.
+#include "arduinoawait/queue.h"
 
 namespace arduinoawait {
 

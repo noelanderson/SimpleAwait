@@ -158,6 +158,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             hardware/FlagIRQ
+      - name: Compile queue producer/consumer validation sketch (bounded Queue FIFO)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            hardware/QueueProducerConsumer
       - name: Compile 01_Blink golden example
         run: |
           arduino-cli compile \
@@ -194,6 +200,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             examples/06_ThreadSafeFlagIRQ
+      - name: Compile 07_QueueProducerConsumer golden example
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            examples/07_QueueProducerConsumer
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

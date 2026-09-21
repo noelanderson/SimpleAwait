@@ -38,6 +38,20 @@ Task<void> waiter(Event* ev, int label) {
     co_await ev->wait();
     g_woke[g_woken++] = label;
 }
+
+// Records a marker, then sets the Event from WITHIN a running pass (in-pass wake).
+Task<void> setterTask(Event* ev) {
+    g_woke[g_woken++] = 90;
+    ev->set();
+    co_return;
+}
+
+// An unrelated ready task, to check that woken waiters do not jump ahead of work
+// already ready when the setter runs.
+Task<void> plainTask(int label) {
+    g_woke[g_woken++] = label;
+    co_return;
+}
 } // namespace
 
 int main() {
@@ -79,6 +93,30 @@ int main() {
     AA_CHECK(g_woken == 1 && g_woke[0] == 5);
 
     AA_CHECK(sch.activeTaskCount() == 0);
+
+    // ---- in-pass set() leaves woken work for a LATER pass (preserving the
+    //      already-ready FIFO order), and clear() after set() cannot revoke an
+    //      already-issued wake ----
+    {
+        Event ev2;
+        g_woken = 0;
+        spawn(waiter(&ev2, 1));
+        spawn(waiter(&ev2, 2));
+        poll(); // both park on the clear Event
+        AA_CHECK(g_woken == 0);
+        spawn(setterTask(&ev2)); // sets ev2 during its own run
+        spawn(plainTask(80));    // unrelated ready task queued after the setter
+        poll(); // setter (90) then plain (80) run; the waiters it woke do NOT run
+                // this pass (queued after the budget snapshot)
+        AA_CHECK(g_woken == 2 && g_woke[0] == 90 && g_woke[1] == 80);
+        AA_CHECK(ev2.isSet());
+        ev2.clear(); // clearing after set() must not revoke the already-issued wakes
+        AA_CHECK(!ev2.isSet());
+        poll(); // the woken waiters now run, in FIFO order
+        AA_CHECK(g_woken == 4 && g_woke[2] == 1 && g_woke[3] == 2);
+        AA_CHECK(sch.activeTaskCount() == 0);
+    }
+
     // The Event path allocated nothing on the global heap.
     AA_CHECK(g_new_calls == newAtStart);
     // ev has no waiters here; its destructor at scope end raises no error.

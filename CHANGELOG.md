@@ -7,6 +7,45 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M5: yield(), delay(), and timer waits
+
+- `arduinoawait::yield()` (`YieldAwaitable`) and `arduinoawait::delay(uint32_t ms)`
+  / `delay_ms(uint32_t ms)` / `delay_us(uint64_t us)` (`DelayAwaitable`) in
+  `src/arduinoawait/delay.h` — the frozen V1 timing awaitables (V1_API_CONTRACT
+  §8). `co_await yield()` and `co_await delay(0)`/`delay_ms(0)`/`delay_us(0)` are
+  fair yield points: they always suspend and requeue for a LATER `poll()` pass
+  (zero duration is never an immediate `await_ready()` success), so a continuously
+  yielding task cannot starve another ready task. A positive delay suspends until
+  the 64-bit monotonic microsecond clock reaches `now + duration`.
+- The scheduler (`src/arduinoawait/scheduler.h`) gains a fixed per-slot timer
+  wait: a `waiting_timer` state plus an absolute `deadline_us`, with no separate
+  timer nodes or heap. `poll()` now performs ARCHITECTURE §9 step 5 — after
+  sampling the clock it moves every due timer to the ready FIFO (deterministic
+  slot order for equal deadlines) before snapshotting the pass budget, so a woken
+  timer runs in that pass and there is no early or repeat wake. A cached nearest
+  deadline makes idle polls before the next deadline O(1); the O(n) rescan runs
+  only when a timer is actually due.
+- Deadline overflow reuses the M1 deadline math: `now + duration` exceeding
+  `uint64_t` invokes the deterministic hook with `Error::deadline_overflow` (never
+  a silent wrap/saturation). Under a non-halting hook the task is requeued (fair
+  fallback) rather than lost.
+- Host tests: `test_m5_timers` (yield/`delay(0)` one-step-per-pass fairness,
+  positive-delay wake only when due, multiple deadlines in deadline order across
+  passes, equal deadlines in deterministic slot order within a pass, no early/no
+  repeat wake, looped re-arming, and a global new/delete no-heap canary) and
+  `test_m5_overflow` (deadline_overflow raised and the task requeued, plus a
+  non-overflowing control), each on a test-controlled fake clock. Pass on MSVC and
+  Clang 23.1.1 at C++20 and C++23.
+- Golden example `examples/03_YieldFairness` (two 1:1-interleaving yielders plus a
+  `delay_ms`-based reporter); `examples/01_Blink` is completed with its real
+  `delay_ms()`-driven blink body. `hardware/TimerWait` validation sketch measures
+  real delay intervals against the native clock. All compile for RP2040 and RP2350
+  (Arm and RISC-V).
+- Docs: V1_API_CONTRACT §8 gains a usage note that Arduino's global `::yield()` /
+  `::delay()` collide under `using namespace arduinoawait;`, so qualify
+  `arduinoawait::yield()` and prefer `delay_ms()`/`delay_us()` (signatures
+  unchanged).
+
 ### Added — M4: Cooperative scheduler, TaskHandle, ready FIFO
 
 - `arduinoawait::Scheduler` (`src/arduinoawait/scheduler.h`): a fixed-memory

@@ -17,12 +17,13 @@
 //  See docs/arduinoawait/V1_API_CONTRACT.md for the frozen public API and
 //  docs/arduinoawait/ARCHITECTURE.md for the normative design.
 //
-//  Milestone status: M4 (scheduler slots, TaskHandle, ready FIFO, poll). Adds the
-//  cooperative scheduler on top of the Error surface, platform clock + deadline
-//  math, fixed frame allocator, and lazy Task<void>: fixed generation-safe task
-//  slots, create_task/spawn, current_task, and a bounded reentry-guarded poll()
-//  pass. Timers (yield/delay), parent/child await, and the synchronization
-//  primitives arrive in later milestones without changing this include path.
+//  Milestone status: M5 (yield/delay/timer waits). Adds cooperative timing on top
+//  of the M4 scheduler: yield() and delay()/delay_ms()/delay_us() awaitables, a
+//  fixed per-slot timer wait with a cached nearest-deadline O(1) idle fast path,
+//  and deterministic equal-deadline ordering. poll() now processes due timers
+//  before the pass budget (ARCHITECTURE §9 step 5). Parent/child await and the
+//  synchronization primitives arrive in later milestones without changing this
+//  include path.
 // ============================================================================
 
 // Compile-time coroutine support verification. Must come first so an
@@ -50,6 +51,9 @@
 
 // Cooperative scheduler: create_task/spawn/current_task/poll, TaskHandle.
 #include "arduinoawait/scheduler.h"
+
+// yield() and delay()/delay_ms()/delay_us() timer awaitables.
+#include "arduinoawait/delay.h"
 
 namespace arduinoawait {
 

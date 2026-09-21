@@ -134,7 +134,13 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             hardware/SchedulerRun
-      - name: Compile 01_Blink golden example (M4 skeleton)
+      - name: Compile timer wait validation sketch (delay + native clock)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            hardware/TimerWait
+      - name: Compile 01_Blink golden example
         run: |
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
@@ -146,6 +152,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             examples/02_TwoTasks
+      - name: Compile 03_YieldFairness golden example
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            examples/03_YieldFairness
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

@@ -241,6 +241,8 @@ all suspend and yield fairly; zero duration is not an immediate `await_ready()` 
 
 Positive delays use the internal 64-bit monotonic microsecond clock. If `now_us + duration_us` would overflow `uint64_t`, the operation invokes the configured error hook with `Error::deadline_overflow`; silent wrap and saturation are not V1 behavior.
 
+> **Arduino name collision.** The Arduino core declares global `::yield()` and `::delay()`. Under `using namespace arduinoawait;` a bare `yield()` or `delay(ms)` is therefore ambiguous with the core's globals. Call `arduinoawait::yield()` (qualified) — or use the `aa::` alias — and prefer `delay_ms()`/`delay_us()`, which have no core equivalent. This is a usage convention only; the frozen signatures above are unchanged.
+
 ---
 
 ## 9. Event

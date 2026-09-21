@@ -25,6 +25,10 @@ Current sketches:
   `poll()` passes, confirming FIFO run order, `current_task()` inside/outside a
   pass, `TaskHandle::done()` after completion, and slot reuse across passes with a
   bounded active-task count and no heap use.
+- `TimerWait/` — M5: a task repeatedly `co_await delay_ms(500)` and reports the
+  interval actually measured from the native 64-bit microsecond clock, while a
+  second task yields continuously (confirming the sleeping timer task does not
+  starve ready work). Forces the timer path to link the native clock backend.
 
 Additional target-specific validation is added as later milestones land (for
 example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).

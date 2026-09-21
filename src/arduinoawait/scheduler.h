@@ -18,6 +18,7 @@
 #include "config.h"
 #include "error.h"
 #include "detail/platform_clock.h"
+#include "detail/time_math.h"
 #include "task.h"
 
 namespace arduinoawait {
@@ -73,6 +74,11 @@ namespace detail {
 void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration generation) noexcept;
 } // namespace detail
 
+// Timer/yield awaitables (V1_API_CONTRACT §8). Forward-declared so the Scheduler
+// can grant them access to the running task's suspend/timer hooks.
+class YieldAwaitable;
+class DelayAwaitable;
+
 class Scheduler {
 public:
     Scheduler() noexcept = default;
@@ -116,6 +122,7 @@ public:
         } else {
             in_poll_ = true;
             now_ = detail::platform_now_us(); // §9 step 1: sample the 64-bit clock
+            process_due_timers();             // §9 step 5: enqueue due timers (deterministic)
             run_pass();
             in_poll_ = false;
         }
@@ -130,6 +137,8 @@ private:
     friend TaskHandle create_task(Task<void>&& task);
     friend void spawn(Task<void>&& task);
     friend void detail::force_slot_generation(Scheduler&, TaskSlot, TaskGeneration) noexcept;
+    friend class YieldAwaitable;
+    friend class DelayAwaitable;
 
     static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;
 
@@ -158,11 +167,12 @@ private:
         return s.generation == id.generation && s.state == State::completed;
     }
 
-    enum class State : uint8_t { free, ready, running, suspended, completed };
+    enum class State : uint8_t { free, ready, running, waiting_timer, suspended, completed };
 
     struct Slot {
         std::coroutine_handle<> handle{};
-        Slot* next = nullptr; // intrusive ready-FIFO link
+        Slot* next = nullptr;           // intrusive ready-FIFO link
+        detail::tick_t deadline_us = 0; // absolute wake deadline when waiting_timer
         TaskGeneration generation = 0;
         State state = State::free;
     };
@@ -259,13 +269,74 @@ private:
                 slot->handle = {};
                 slot->state = State::completed;
                 --active_count_;
-            } else {
-                // Suspended without re-queueing. No M4 public awaitable does this;
-                // later milestones move such tasks between wait sets. Park it off
-                // the ready queue so it does not run again this pass.
+            } else if (slot->state == State::running) {
+                // Suspended without registering a wake source. No V1 awaitable does
+                // this (yield -> ready, delay -> waiting_timer); park it so it does
+                // not run again until something readies it.
                 slot->state = State::suspended;
             }
+            // Otherwise an awaitable already moved it to ready (yield/delay(0)) or
+            // waiting_timer (positive delay); leave that state intact.
         }
+    }
+
+    // Re-queue the currently running task to the ready FIFO tail for a LATER pass
+    // (yield() / delay(0)). The pass budget was already snapshotted, so it will
+    // not run again this pass.
+    void yield_current() noexcept {
+        if (current_ != nullptr) {
+            current_->state = State::ready;
+            ready_push(current_);
+        }
+    }
+
+    // Suspend the currently running task on a timer `duration_us` from the sampled
+    // clock. Zero duration is a fair yield (delay(0) == yield()). Deadline overflow
+    // routes to the deterministic error hook (Error::deadline_overflow); under a
+    // non-halting hook the task is requeued so it is never lost.
+    void arm_current_timer(detail::tick_t duration_us) noexcept {
+        if (current_ == nullptr) {
+            return;
+        }
+        if (duration_us == 0) {
+            yield_current();
+            return;
+        }
+        detail::tick_t deadline = 0;
+        if (detail::compute_deadline(now_, duration_us, deadline)) {
+            current_->deadline_us = deadline;
+            current_->state = State::waiting_timer;
+            if (deadline < nearest_deadline_) {
+                nearest_deadline_ = deadline;
+            }
+        } else {
+            yield_current(); // overflow: hook fired; do not lose the task
+        }
+    }
+
+    // §9 step 5: move every timer whose deadline is due to the ready FIFO tail in
+    // deterministic slot order. O(1) when nothing is due (cached nearest deadline).
+    void process_due_timers() noexcept {
+        if (now_ < nearest_deadline_) {
+            return; // fast path: the soonest deadline is still in the future
+        }
+        for (Slot& s : slots_) {
+            if (s.state == State::waiting_timer && s.deadline_us <= now_) {
+                s.state = State::ready;
+                ready_push(&s);
+            }
+        }
+        recompute_nearest_deadline();
+    }
+
+    void recompute_nearest_deadline() noexcept {
+        detail::tick_t nearest = UINT64_MAX;
+        for (const Slot& s : slots_) {
+            if (s.state == State::waiting_timer && s.deadline_us < nearest) {
+                nearest = s.deadline_us;
+            }
+        }
+        nearest_deadline_ = nearest;
     }
 
     Slot slots_[kMaxTasks]{};
@@ -276,7 +347,8 @@ private:
     Slot* current_ = nullptr;
     bool in_poll_ = false;
     bool shutting_down_ = false;
-    [[maybe_unused]] detail::tick_t now_ = 0; // §9 step-1 clock sample; used from M5
+    detail::tick_t now_ = 0;                       // §9 step-1 clock sample
+    detail::tick_t nearest_deadline_ = UINT64_MAX; // cached soonest timer deadline
 };
 
 inline bool TaskHandle::valid() const noexcept {

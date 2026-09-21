@@ -28,6 +28,7 @@ namespace { unsigned long long g_now = 0; }
 #include "aa_test.h"
 
 using arduinoawait::create_task;
+using arduinoawait::delay;
 using arduinoawait::delay_ms;
 using arduinoawait::delay_us;
 using arduinoawait::poll;
@@ -44,6 +45,14 @@ int g_sleeper_phase = 0;
 int g_wake_order[8] = {};
 int g_wake_count = 0;
 int g_periodic_ticks = 0;
+
+// One task per zero-duration public entry point. Each records a pre-await marker
+// (1) then a post-await marker (2); all four must suspend to a LATER pass.
+int g_zp[4] = {};
+Task<void> zeroYield()   { g_zp[0] = 1; co_await yield();       g_zp[0] = 2; }
+Task<void> zeroDelay()   { g_zp[1] = 1; co_await delay(0);      g_zp[1] = 2; }
+Task<void> zeroDelayMs() { g_zp[2] = 1; co_await delay_ms(0);   g_zp[2] = 2; }
+Task<void> zeroDelayUs() { g_zp[3] = 1; co_await delay_us(0);   g_zp[3] = 2; }
 
 // Runs `count` iterations, yielding between each; the body advances by exactly
 // one step per poll() pass.
@@ -110,6 +119,23 @@ int main() {
     poll();
     AA_CHECK(g_zero_runs == 3 && hz.done());
 
+    // ---- every zero-duration entry point suspends to a LATER pass ----
+    for (int i = 0; i < 4; ++i) {
+        g_zp[i] = 0;
+    }
+    spawn(zeroYield());
+    spawn(zeroDelay());
+    spawn(zeroDelayMs());
+    spawn(zeroDelayUs());
+    poll(); // each runs to its pre-await marker and suspends (no same-pass resume)
+    for (int i = 0; i < 4; ++i) {
+        AA_CHECK(g_zp[i] == 1); // stopped at the pre-await marker
+    }
+    poll(); // each resumes on the later pass and completes
+    for (int i = 0; i < 4; ++i) {
+        AA_CHECK(g_zp[i] == 2); // post-await marker ran exactly once
+    }
+
     // ---- positive delay: wakes only when the deadline is reached ----
     g_now = 0;
     g_sleeper_phase = 0;
@@ -148,6 +174,20 @@ int main() {
     g_now = 500000;
     poll();
     AA_CHECK(g_wake_count == 3); // no repeat wake after completion
+
+    // ---- multiple DISTINCT deadlines all overdue at one poll wake in DEADLINE
+    //      order, not slot order (regression: earlier-slot task has the LATER
+    //      deadline, so a slot-order scan would wake them backwards) ----
+    g_now = 0;
+    g_wake_count = 0;
+    spawn(waker(1, 200)); // lower slot, LATER deadline (200 ms)
+    spawn(waker(2, 100)); // higher slot, EARLIER deadline (100 ms)
+    poll();               // arm both; none due
+    AA_CHECK(g_wake_count == 0);
+    g_now = 300000;       // both overdue in a single poll
+    poll();
+    AA_CHECK(g_wake_count == 2);
+    AA_CHECK(g_wake_order[0] == 2 && g_wake_order[1] == 1); // 100 ms before 200 ms
 
     // ---- a task can re-arm a timer in a loop (relative deadlines) ----
     g_now = 0;

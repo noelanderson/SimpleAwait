@@ -24,7 +24,9 @@ static unsigned long g_yield_ticks = 0;
 static Task<void> blinker() {
     pinMode(LED_BUILTIN, OUTPUT);
     bool on = false;
-    unsigned long long last = 0;
+    // Baseline from the clock before the first wait, so the first reported
+    // interval measures one actual delay rather than uptime-at-first-wake.
+    unsigned long long last = arduinoawait::detail::platform_now_us();
     while (true) {
         co_await delay_ms(500);
         on = !on;

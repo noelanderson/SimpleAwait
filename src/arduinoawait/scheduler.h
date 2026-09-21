@@ -315,16 +315,27 @@ private:
     }
 
     // §9 step 5: move every timer whose deadline is due to the ready FIFO tail in
-    // deterministic slot order. O(1) when nothing is due (cached nearest deadline).
+    // ascending deadline order (tie-break: slot index), so distinct deadlines wake
+    // in deadline order within a single pass even when several are already overdue.
+    // O(1) when nothing is due (cached nearest deadline); the O(N^2) selection runs
+    // only when a timer fires, which §11.6 permits for the small fixed capacity.
     void process_due_timers() noexcept {
         if (now_ < nearest_deadline_) {
             return; // fast path: the soonest deadline is still in the future
         }
-        for (Slot& s : slots_) {
-            if (s.state == State::waiting_timer && s.deadline_us <= now_) {
-                s.state = State::ready;
-                ready_push(&s);
+        for (;;) {
+            Slot* soonest = nullptr;
+            for (Slot& s : slots_) {
+                if (s.state == State::waiting_timer && s.deadline_us <= now_ &&
+                    (soonest == nullptr || s.deadline_us < soonest->deadline_us)) {
+                    soonest = &s; // strict '<' keeps the lowest slot on ties
+                }
             }
+            if (soonest == nullptr) {
+                break;
+            }
+            soonest->state = State::ready;
+            ready_push(soonest);
         }
         recompute_nearest_deadline();
     }

@@ -38,30 +38,52 @@ inline constexpr bool task_type_unsupported = false;
 // Task<void>.
 std::coroutine_handle<> take_frame(Task<void>& task) noexcept;
 
-// Starts `child` as a child of the currently running task: transfers the frame to
-// the scheduler, links it to the parent, and moves the parent to waiting_child.
-// Defined in scheduler.h. On slot exhaustion it reports the error, releases the
-// child frame, and requeues the parent (fair fallback) so it is not lost.
-void start_child(std::coroutine_handle<> child) noexcept;
+// Returns true if the child was adopted by the scheduler (the awaiting coroutine
+// must stay suspended); false if there was no running ArduinoAwait parent to
+// attach it to (the error was reported and the caller must resume rather than
+// hang). Defined in scheduler.h.
+bool start_child(std::coroutine_handle<> child) noexcept;
 
-// Awaiter for `co_await` on a Task<void> (sequential child await). It consumes
-// the child frame; awaiting an empty Task (default-constructed or already
-// consumed by a prior await) fails deterministically via the error hook
-// (task_awaited_twice) without suspending.
+// Awaiter for `co_await` on a Task<void> (sequential child await). It is move-only
+// and RAII-owning: from the moment `operator co_await` consumes the Task until the
+// frame is handed to the scheduler in await_suspend, this awaiter is the child
+// frame's sole owner, so an awaiter that is extracted but never awaited releases
+// the frame in its destructor instead of leaking it. Awaiting an empty Task
+// (default-constructed or already consumed) fails deterministically via the error
+// hook (task_awaited_twice) without suspending.
 class TaskAwaiter {
 public:
-    explicit TaskAwaiter(std::coroutine_handle<> child) noexcept : child_(child) {}
+    explicit TaskAwaiter(std::coroutine_handle<> child) noexcept
+        : child_(child), was_empty_(child == nullptr) {}
 
-    bool await_ready() const noexcept { return child_ == nullptr; }
-    void await_suspend(std::coroutine_handle<>) const noexcept { start_child(child_); }
+    TaskAwaiter(TaskAwaiter&& other) noexcept
+        : child_(other.child_), was_empty_(other.was_empty_) {
+        other.child_ = {};
+    }
+    TaskAwaiter(const TaskAwaiter&) = delete;
+    TaskAwaiter& operator=(const TaskAwaiter&) = delete;
+    TaskAwaiter& operator=(TaskAwaiter&&) = delete;
+    ~TaskAwaiter() {
+        if (child_) {
+            child_.destroy(); // abandoned before suspension: release the frame
+        }
+    }
+
+    bool await_ready() const noexcept { return was_empty_; }
+    bool await_suspend(std::coroutine_handle<>) noexcept {
+        const std::coroutine_handle<> child = child_;
+        child_ = {}; // hand ownership to the scheduler (or its failure path)
+        return start_child(child); // false -> no running parent -> do not suspend
+    }
     void await_resume() const noexcept {
-        if (child_ == nullptr) {
+        if (was_empty_) {
             ARDUINOAWAIT_ON_ERROR(Error::task_awaited_twice);
         }
     }
 
 private:
     std::coroutine_handle<> child_;
+    bool was_empty_;
 };
 } // namespace detail
 

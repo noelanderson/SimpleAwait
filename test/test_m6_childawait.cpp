@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <utility>
 
 namespace { unsigned long long g_new_calls = 0; }
 void* operator new(std::size_t n) { ++g_new_calls; return std::malloc(n ? n : 1); }
@@ -142,6 +143,17 @@ int main() {
     }
     AA_CHECK(frame_pool().bytesUsed() == poolBefore); // every frame recovered
     AA_CHECK(sch.activeTaskCount() == 0);
+
+    // ---- an extracted-but-unawaited awaiter releases the child frame (no leak) ----
+    {
+        const size_t poolBase = frame_pool().bytesUsed();
+        {
+            Task<void> t = child();
+            auto awaiter = std::move(t).operator co_await(); // extracts the child frame
+            (void)awaiter; // never awaited: the awaiter destructor must free the frame
+        }
+        AA_CHECK(frame_pool().bytesUsed() == poolBase); // frame recovered, not leaked
+    }
 
     // No child-await frame or scheduler node ever touched the global heap.
     AA_CHECK(g_new_calls == newAtStart);

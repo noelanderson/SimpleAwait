@@ -139,7 +139,7 @@ private:
     friend void detail::force_slot_generation(Scheduler&, TaskSlot, TaskGeneration) noexcept;
     friend class YieldAwaitable;
     friend class DelayAwaitable;
-    friend void detail::start_child(std::coroutine_handle<>) noexcept;
+    friend bool detail::start_child(std::coroutine_handle<>) noexcept;
 
     static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;
 
@@ -329,32 +329,36 @@ private:
         }
     }
 
-    // Start an awaited child of the currently running task (the parent). Transfers
-    // the child frame into a slot linked to the parent and moves the parent to
-    // waiting_child; the child runs on a later pass and, on completion, enqueues
-    // the parent (see run_pass, ARCHITECTURE §19). On slot exhaustion the child
-    // frame is released, the parent is requeued so it is not lost, and the error
-    // hook is invoked.
-    void start_child_await(std::coroutine_handle<> child) noexcept {
+    // Start an awaited child of the currently running task (the parent). Returns
+    // true if the awaiting coroutine must stay suspended: either the child was
+    // adopted (parent -> waiting_child, child runs on a later pass and enqueues
+    // the parent on completion, ARCHITECTURE §19), or no slot was free so the
+    // child is released and the parent requeued for a later resume. Returns false
+    // when there is no running ArduinoAwait parent (current_ == nullptr): the
+    // child is released and the error reported, and the foreign caller must resume
+    // rather than hang (it is never adopted by the scheduler).
+    bool start_child_await(std::coroutine_handle<> child) noexcept {
         Slot* parent = current_;
-        if (Slot* slot = acquire_slot(); slot != nullptr) {
+        bool suspend = true;
+        if (parent == nullptr) {
+            child.destroy(); // no running parent: do not strand a foreign caller
+            suspend = false;
+            ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+        } else if (Slot* slot = acquire_slot(); slot == nullptr) {
+            child.destroy();              // no slot for the child; release its frame
+            parent->state = State::ready; // requeue the parent so it is not stuck
+            ready_push(parent);
+            ARDUINOAWAIT_ON_ERROR(Error::task_limit);
+        } else {
             slot->handle = child;
             slot->state = State::ready;
             slot->next = nullptr;
             slot->parent = parent;
             ready_push(slot);
             ++active_count_;
-            if (parent != nullptr) {
-                parent->state = State::waiting_child;
-            }
-        } else {
-            child.destroy(); // no slot for the child; release its frame
-            if (parent != nullptr) {
-                parent->state = State::ready; // requeue the parent so it is not stuck
-                ready_push(parent);
-            }
-            ARDUINOAWAIT_ON_ERROR(Error::task_limit);
+            parent->state = State::waiting_child;
         }
+        return suspend;
     }
 
     // §9 step 5: move every timer whose deadline is due to the ready FIFO tail in
@@ -431,8 +435,8 @@ namespace detail {
 inline void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration generation) noexcept {
     sched.slots_[slot].generation = generation;
 }
-inline void start_child(std::coroutine_handle<> child) noexcept {
-    scheduler().start_child_await(child);
+inline bool start_child(std::coroutine_handle<> child) noexcept {
+    return scheduler().start_child_await(child);
 }
 } // namespace detail
 

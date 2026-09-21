@@ -17,13 +17,13 @@
 //  See docs/arduinoawait/V1_API_CONTRACT.md for the frozen public API and
 //  docs/arduinoawait/ARCHITECTURE.md for the normative design.
 //
-//  Milestone status: M6 (parent/child await). Adds sequential child await on top
-//  of M5: `co_await someTask()` runs the child Task to completion as a child of
-//  the awaiting task — transferring the child frame into the scheduler, moving the
-//  parent to waiting_child, and enqueuing the parent at the ready FIFO tail on
-//  child completion (a later pass; no inline resume, no symmetric transfer). The
-//  synchronization primitives (Event, ThreadSafeFlag, Queue) and waitUntil arrive
-//  in later milestones without changing this include path.
+//  Milestone status: M7 (WaitQueue + Event). Adds scheduler-local synchronization
+//  on top of M6: an intrusive FIFO WaitQueue and a manual-reset, multi-waiter
+//  Event (wait/set/clear/isSet). wait() on a clear Event parks the task
+//  (waiting_local); set() latches the Event and wakes all waiters FIFO for a
+//  later pass; destroying an Event with waiters is a deterministic error.
+//  ThreadSafeFlag, Queue, and waitUntil arrive in later milestones without
+//  changing this include path.
 // ============================================================================
 
 // Compile-time coroutine support verification. Must come first so an
@@ -54,6 +54,9 @@
 
 // yield() and delay()/delay_ms()/delay_us() timer awaitables.
 #include "arduinoawait/delay.h"
+
+// Event: scheduler-local, manual-reset, multi-waiter synchronization.
+#include "arduinoawait/event.h"
 
 namespace arduinoawait {
 

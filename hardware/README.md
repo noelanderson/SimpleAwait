@@ -33,6 +33,10 @@ Current sketches:
   doing timed work) and confirms they complete in order, while a heartbeat task
   runs concurrently. Forces the child-await path (`TaskAwaiter` -> scheduler
   `start_child`) and the coroutine ABI to compile and link for the target.
+- `EventWake/` — M7: three waiter tasks `co_await` one manual-reset Event; a
+  controller `set()`s it to release them and reports whether the wake order was
+  FIFO, then `clear()`s it for the next round. Forces the Event / WaitQueue path
+  (park in `waiting_local`, `wake_all` to the ready FIFO) to compile and link.
 
 Additional target-specific validation is added as later milestones land (for
 example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).

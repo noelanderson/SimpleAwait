@@ -7,6 +7,38 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M7: WaitQueue and Event
+
+- `arduinoawait::Event` (`src/arduinoawait/event.h`) — the frozen V1 scheduler-
+  local, manual-reset, multi-waiter synchronization primitive (V1_API_CONTRACT
+  §9). `co_await ev.wait()` on a clear Event suspends the task; `set()` latches the
+  Event and wakes all current waiters in FIFO order (they run on a LATER poll
+  pass, appended behind tasks already ready — no inline resume); the Event stays
+  set until `clear()`, so `wait()` on a set Event completes without suspension and
+  `clear()` affects only future waits. There is no ISR `set()` (Event is
+  scheduler-context only; external contexts use ThreadSafeFlag, a later
+  milestone). Destroying an Event that still has parked waiters invokes the
+  deterministic hook with `Error::object_destroyed_with_waiters`.
+- The scheduler (`src/arduinoawait/scheduler.h`) gains an intrusive FIFO
+  `WaitQueue` (ARCHITECTURE §14, a private nested type holding task slots via the
+  shared `next` link — no heap, no separate nodes) and a `waiting_local` task
+  state, plus `wait_on()`/`wake_all()`. `Event` is a friend of `Scheduler` and
+  holds a `Scheduler::WaitQueue`, so the frozen §7 public Scheduler surface is
+  unchanged. `wait_on()` applies the M6 lesson: a wait whose awaiting coroutine is
+  not the running task (foreign or nested) is rejected with `Error::invalid_task`
+  and does not suspend the caller, rather than stranding it.
+- Host tests (MSVC + Clang 23.1.1, C++20 and C++23): `test_m7_event` (clear wait
+  suspends; `set()` wakes all waiters in FIFO order; woken tasks run on a later
+  poll, not inline; `wait()` on a set Event does not suspend; the Event stays set;
+  `clear()` affects only future waits; and a global new/delete no-heap canary) and
+  `test_m7_errors` (a foreign coroutine waiting outside `poll()` is rejected with
+  `invalid_task` and resumes; destroying an Event with a parked waiter raises
+  `object_destroyed_with_waiters`).
+- Golden example `examples/05_Event` (a one-shot "start line" releasing several
+  waiting runners with a single `set()`). `hardware/EventWake` validation sketch
+  confirms multi-waiter FIFO wake on-target. All compile for RP2040 and RP2350
+  (Arm and RISC-V).
+
 ### Added — M6: Parent/child await
 
 - `Task<void>::operator co_await() && noexcept` (`src/arduinoawait/task.h`) — the

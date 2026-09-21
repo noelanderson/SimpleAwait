@@ -140,6 +140,7 @@ private:
     friend class YieldAwaitable;
     friend class DelayAwaitable;
     friend bool detail::start_child(std::coroutine_handle<>, std::coroutine_handle<>) noexcept;
+    friend class Event;
 
     static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;
 
@@ -169,16 +170,49 @@ private:
     }
 
     enum class State : uint8_t {
-        free, ready, running, waiting_timer, waiting_child, suspended, completed
+        free, ready, running, waiting_timer, waiting_child, waiting_local, suspended, completed
     };
 
     struct Slot {
         std::coroutine_handle<> handle{};
-        Slot* next = nullptr;           // intrusive ready-FIFO link
+        Slot* next = nullptr;           // intrusive link: ready FIFO OR one wait queue
         Slot* parent = nullptr;         // awaiting parent when this is an awaited child
         detail::tick_t deadline_us = 0; // absolute wake deadline when waiting_timer
         TaskGeneration generation = 0;
         State state = State::free;
+    };
+
+    // Intrusive FIFO of waiting task slots (ARCHITECTURE §14), shared by Event
+    // (and later Queue). A slot's `next` link is reused because a task is never
+    // both ready and waiting. Private type; Event holds one via friendship.
+    class WaitQueue {
+    public:
+        bool empty() const noexcept { return head_ == nullptr; }
+
+    private:
+        friend class Scheduler;
+        void push_back(Slot* s) noexcept {
+            s->next = nullptr;
+            if (tail_ == nullptr) {
+                head_ = s;
+            } else {
+                tail_->next = s;
+            }
+            tail_ = s;
+        }
+        Slot* pop_front() noexcept {
+            Slot* s = head_;
+            if (s != nullptr) {
+                head_ = s->next;
+                if (head_ == nullptr) {
+                    tail_ = nullptr;
+                }
+                s->next = nullptr;
+            }
+            return s;
+        }
+        Slot* head_ = nullptr;
+        Slot* tail_ = nullptr;
     };
 
     TaskSlot index_of(const Slot* s) const noexcept {
@@ -362,6 +396,34 @@ private:
             parent->state = State::waiting_child;
         }
         return suspend;
+    }
+
+    // Park the currently running task on a wait queue (Event, and later Queue).
+    // Returns true if the caller must stay suspended (parked); false if the
+    // awaiting coroutine is not the currently running ArduinoAwait task (foreign
+    // or nested), in which case the error is reported and the caller resumes
+    // rather than hang. Mirrors the child-await parent validation (M6).
+    bool wait_on(WaitQueue& q, std::coroutine_handle<> awaiting) noexcept {
+        Slot* self = current_;
+        bool suspend = false;
+        if (self != nullptr && self->state == State::running &&
+            self->handle.address() == awaiting.address()) {
+            self->state = State::waiting_local;
+            q.push_back(self);
+            suspend = true;
+        } else {
+            ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+        }
+        return suspend; // reachable via the success path; no code after a hook
+    }
+
+    // Move all waiters on a queue to the ready FIFO in FIFO order. A woken task
+    // runs on a later pass; appending keeps it behind tasks already ready.
+    void wake_all(WaitQueue& q) noexcept {
+        while (Slot* s = q.pop_front()) {
+            s->state = State::ready;
+            ready_push(s);
+        }
     }
 
     // §9 step 5: move every timer whose deadline is due to the ready FIFO tail in

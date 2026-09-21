@@ -146,6 +146,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             hardware/ChildAwait
+      - name: Compile event wake validation sketch (Event multi-waiter FIFO)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            hardware/EventWake
       - name: Compile 01_Blink golden example
         run: |
           arduino-cli compile \
@@ -170,6 +176,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             examples/04_ParentChild
+      - name: Compile 05_Event golden example
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            examples/05_Event
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

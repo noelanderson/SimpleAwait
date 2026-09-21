@@ -1,0 +1,87 @@
+// M7 Event test — scheduler-local manual-reset multi-waiter Event.
+//
+// Verifies (V1 §9 / ARCHITECTURE §15): wait() on a clear Event suspends; set()
+// wakes all current waiters in FIFO order and leaves the Event set; woken tasks
+// run on a LATER poll (not inline in set()); wait() on a set Event completes
+// without suspension; the Event stays set until clear(); and clear() affects only
+// future waits. A global new/delete canary proves the Event path is heap-free.
+
+#include <cstddef>
+#include <cstdlib>
+
+namespace { unsigned long long g_new_calls = 0; }
+void* operator new(std::size_t n) { ++g_new_calls; return std::malloc(n ? n : 1); }
+void* operator new[](std::size_t n) { ++g_new_calls; return std::malloc(n ? n : 1); }
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete[](void* p) noexcept { std::free(p); }
+void operator delete(void* p, std::size_t) noexcept { std::free(p); }
+void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
+
+namespace { unsigned long long g_now = 0; }
+#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+
+#include <ArduinoAwait.h>
+
+#include "aa_test.h"
+
+using arduinoawait::Event;
+using arduinoawait::poll;
+using arduinoawait::scheduler;
+using arduinoawait::spawn;
+using arduinoawait::Task;
+
+namespace {
+int g_woke[16] = {};
+int g_woken = 0;
+
+Task<void> waiter(Event* ev, int label) {
+    co_await ev->wait();
+    g_woke[g_woken++] = label;
+}
+} // namespace
+
+int main() {
+    auto& sch = scheduler();
+    const unsigned long long newAtStart = g_new_calls;
+    Event ev;
+
+    // ---- clear wait suspends; set wakes all FIFO; woken run on a LATER poll ----
+    g_woken = 0;
+    spawn(waiter(&ev, 1));
+    spawn(waiter(&ev, 2));
+    spawn(waiter(&ev, 3));
+    poll(); // each runs to `co_await ev.wait()` and parks (the Event is clear)
+    AA_CHECK(g_woken == 0);   // clear wait suspended all three
+    AA_CHECK(!ev.isSet());
+    ev.set();                 // latch + wake all current waiters (FIFO)
+    AA_CHECK(ev.isSet());
+    AA_CHECK(g_woken == 0);   // set() does not resume inline
+    poll();                   // the three woken tasks run in FIFO order
+    AA_CHECK(g_woken == 3);
+    AA_CHECK(g_woke[0] == 1 && g_woke[1] == 2 && g_woke[2] == 3);
+
+    // ---- wait while set does not suspend; the Event remains set ----
+    g_woken = 0;
+    spawn(waiter(&ev, 4));
+    poll(); // ev is set -> wait() completes without suspension, in one poll
+    AA_CHECK(g_woken == 1 && g_woke[0] == 4);
+    AA_CHECK(ev.isSet()); // remains set until clear()
+
+    // ---- clear affects only future waits ----
+    ev.clear();
+    AA_CHECK(!ev.isSet());
+    g_woken = 0;
+    spawn(waiter(&ev, 5));
+    poll(); // ev is clear again -> suspends
+    AA_CHECK(g_woken == 0);
+    ev.set();
+    poll();
+    AA_CHECK(g_woken == 1 && g_woke[0] == 5);
+
+    AA_CHECK(sch.activeTaskCount() == 0);
+    // The Event path allocated nothing on the global heap.
+    AA_CHECK(g_new_calls == newAtStart);
+    // ev has no waiters here; its destructor at scope end raises no error.
+
+    AA_RUN_TESTS();
+}

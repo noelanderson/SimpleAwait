@@ -90,21 +90,40 @@ int main() {
     AA_CHECK(g_last_error == static_cast<int>(Error::scheduler_reentry));
     AA_CHECK(sch.activeTaskCount() == 0); // the task still completed
 
-    // ---- generation retirement near the uint32 boundary: no wrap (H2) ----
-    // Complete a task to leave a tombstone, then force its generation to the
-    // maximum. A retired slot must NOT be reused (its generation cannot be
-    // incremented onto an earlier live handle); the next create fails as full.
+    // ---- generation retirement at the exact uint32 boundary: no wrap (H2) ----
+    // Drive the single slot to UINT32_MAX-1, then prove: (a) one more acquisition
+    // advances it to a LIVE UINT32_MAX generation; (b) the slot is then retired —
+    // REPEATED scheduling attempts are all rejected without touching the
+    // generation (no wrap to 0, no reuse); (c) the max-generation handle keeps its
+    // identity and an older handle is never resurrected.
     g_last_error = -1;
-    TaskHandle hr = create_task(noop());
-    poll();
-    AA_CHECK(hr.done());
-    const arduinoawait::TaskSlot slot = hr.id().slot;
-    force_slot_generation(sch, slot, UINT32_MAX); // simulate an exhausted slot
-    AA_CHECK(!hr.valid());                         // hr's generation no longer matches
-    AA_CHECK(!hr.done());
-    TaskHandle retired = create_task(noop());      // slot retired -> no reuse -> full
-    AA_CHECK(!retired.valid());
-    AA_CHECK(g_last_error == static_cast<int>(Error::task_limit));
+    TaskHandle older = create_task(noop());
+    poll(); // older completes -> tombstone
+    AA_CHECK(older.done());
+    const arduinoawait::TaskSlot genSlot = older.id().slot;
+
+    force_slot_generation(sch, genSlot, UINT32_MAX - 1u); // one below the boundary
+    AA_CHECK(!older.valid());                             // older generation no longer matches
+    AA_CHECK(!older.done());
+
+    TaskHandle atMax = create_task(noop()); // completed-slot reuse advances gen -> UINT32_MAX
+    AA_CHECK(atMax.valid());
+    AA_CHECK(atMax.id().generation == UINT32_MAX);        // MAX is a valid LIVE generation
+    AA_CHECK(atMax.id().slot == genSlot);
+    poll(); // atMax completes -> tombstone at generation UINT32_MAX
+    AA_CHECK(atMax.done());
+
+    // Retired: multiple further attempts must ALL fail as task_limit, leaving the
+    // generation untouched (no wrap, no resurrection).
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        g_last_error = -1;
+        TaskHandle rejected = create_task(noop());
+        AA_CHECK(!rejected.valid());
+        AA_CHECK(g_last_error == static_cast<int>(Error::task_limit));
+        AA_CHECK(atMax.valid());  // max-generation handle still identifies its completed task
+        AA_CHECK(atMax.done());
+        AA_CHECK(!older.valid()); // the older handle is never resurrected
+    }
     AA_CHECK(sch.activeTaskCount() == 0);
 
     AA_RUN_TESTS();

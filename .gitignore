@@ -33,3 +33,7 @@ __pycache__/
 # Arduino / PlatformIO build output
 /.pio/
 /examples/**/build/
+
+# Reviewer scratch (independent-review build dirs and verdict files)
+/build_*/
+.*_review_verdict.md

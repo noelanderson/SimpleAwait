@@ -23,6 +23,7 @@ int g_body_runs = 0;       // reentrant task body executions (must stay 0)
 int g_param_dtors = 0;     // live by-value parameter destructions (must be 1)
 int g_teardown_refused = 0; // create_task() during teardown returned invalid (must be 1)
 int g_teardown_polls = 0;  // poll() calls made during teardown (must be >= 1)
+int g_detach_observed = 0; // dying task seen as a completed tombstone in the reentrant dtor (must be 1)
 }
 #define ARDUINOAWAIT_ON_ERROR(error) (void)((g_errors += 1), static_cast<int>(error))
 #define ARDUINOAWAIT_CLOCK_NOW_US() (0ull)
@@ -37,6 +38,9 @@ using arduinoawait::Task;
 using arduinoawait::TaskHandle;
 
 namespace {
+
+// Handle to the pending scheduled task, observed from the reentrant destructor.
+TaskHandle g_scheduled;
 
 Task<void> idle() { co_return; }
 
@@ -53,6 +57,13 @@ struct Reentrant {
             return;
         }
         ++g_param_dtors;
+        // Detach-before-destroy: at this point the dying scheduled task must
+        // already be a completed tombstone (valid() AND done() both hold). If the
+        // frame were destroyed BEFORE its slot was detached, done() would be false
+        // here (the slot would still be ready and scheduler-owned).
+        if (g_scheduled.valid() && g_scheduled.done()) {
+            ++g_detach_observed;
+        }
         poll();                 // must be a no-op during teardown (no reentry, no crash)
         ++g_teardown_polls;
         TaskHandle h = create_task(idle()); // must be refused during teardown
@@ -73,12 +84,12 @@ struct FinalCheck {
     ~FinalCheck() {
         const bool ok = (g_errors == 0) && (g_body_runs == 0) &&
                         (g_param_dtors == 1) && (g_teardown_refused == 1) &&
-                        (g_teardown_polls >= 1);
+                        (g_teardown_polls >= 1) && (g_detach_observed == 1);
         if (!ok) {
             std::fprintf(stderr,
-                         "shutdown FAIL: errors=%d body=%d paramdtors=%d refused=%d polls=%d\n",
+                         "shutdown FAIL: errors=%d body=%d paramdtors=%d refused=%d polls=%d detach=%d\n",
                          g_errors, g_body_runs, g_param_dtors, g_teardown_refused,
-                         g_teardown_polls);
+                         g_teardown_polls, g_detach_observed);
             std::_Exit(70);
         }
         std::fprintf(stderr, "shutdown teardown OK\n");
@@ -93,6 +104,7 @@ int main() {
     TaskHandle h = create_task(reentrantTask(Reentrant{}));
     AA_CHECK(h.valid());
     AA_CHECK(!h.done()); // never polled
+    g_scheduled = h;     // observed from the reentrant destructor at teardown
 
     AA_RUN_TESTS(); // returns 0; FinalCheck runs at exit and enforces clean teardown
 }

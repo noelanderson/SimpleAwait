@@ -21,23 +21,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   matching the §9 poll() model. `trySend`/`tryReceive` are the non-suspending
   variants; `empty`/`full`/`size`/`capacity` are observers. Storage is a fixed ring
   of `alignas(T)` raw cells with placement construction/destruction, so `T` need not
-  be default-constructible and no global heap is used; move-only and
-  non-default-constructible payloads are supported. There are no ISR methods in V1.
+  be default-constructible and no global heap is used. Value delivery uses
+  `std::move_if_noexcept`, so move-only, non-default-constructible, AND copy-only
+  (no move constructor) payloads are all supported. There are no ISR methods in V1.
   A foreign/nested await (the awaiting coroutine is not the running task) is rejected
   with `invalid_task` rather than stranded; destroying a queue with parked senders or
-  receivers raises `object_destroyed_with_waiters`. `Queue` is a friend of
+  receivers raises `object_destroyed_with_waiters`. A parked awaiter is the intrusive
+  list node and unlinks itself if its coroutine frame is destroyed while still parked
+  (e.g. when the scheduler tears down parked frames at shutdown while the queue
+  outlives it), so no dangling waiter link is ever left behind. `Queue` is a friend of
   `Scheduler` (reusing `running_is()`/`park_running()`/`wake_slot()`), so the frozen
   §7 scheduler surface is unchanged.
 - Host tests (MSVC + Clang 23.1.1, C++20 and C++23): `test_m9_queue` (basic
   try/await send+receive; full-trySend failure; empty-receive and full-send
   suspension with deferred, never-inline wakeups; FIFO value order; FIFO sender and
   receiver waiter order; ring-index wrapping; a 1000-item producer/consumer stress;
-  move-only `unique_ptr` and non-default-constructible payloads; exactly-once
-  construction/destruction including a non-empty destroy; and a no-heap canary over
-  the trivial-payload mechanics) and `test_m9_errors` (destroy-with-parked-sender and
-  destroy-with-parked-receiver -> `object_destroyed_with_waiters`; foreign
-  receive-on-empty and send-on-full -> `invalid_task`, not stranded, no state
-  mutation).
+  move-only `unique_ptr`, non-default-constructible, and copy-only [deleted move
+  ctor] payloads across the immediate-buffer, direct-receiver, and parked-sender
+  delivery paths; exactly-once construction/destruction including a non-empty
+  destroy; and a no-heap canary over the trivial-payload mechanics), `test_m9_errors`
+  (destroy-with-parked-sender and destroy-with-parked-receiver ->
+  `object_destroyed_with_waiters`; foreign receive-on-empty and send-on-full ->
+  `invalid_task`, not stranded, no state mutation), and `test_m9_shutdown` (a
+  namespace-scope queue that outlives the scheduler singleton: parked awaiters unlink
+  as their frames are torn down at teardown, so the queue's destructor sees no waiter
+  and the process exits cleanly).
 - Golden example `examples/07_QueueProducerConsumer` (a producer and a slower
   consumer exchange values through a bounded queue with automatic back-pressure) and
   `hardware/QueueProducerConsumer` validation sketch (a producer/consumer pair over a

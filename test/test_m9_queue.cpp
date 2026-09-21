@@ -75,6 +75,29 @@ Task<void> ndcConsumer(Queue<NoDefault, 1>* q, int* out) {
     *out = r.x;
 }
 
+// Copy-only payload: has a copy constructor but an explicitly DELETED move
+// constructor. Delivery must fall back to copy on every path (send and receive)
+// rather than force the deleted move.
+struct CopyOnly {
+    int x;
+    explicit CopyOnly(int v) noexcept : x(v) {}
+    CopyOnly(const CopyOnly& o) noexcept : x(o.x) {}
+    CopyOnly& operator=(const CopyOnly& o) noexcept {
+        x = o.x;
+        return *this;
+    }
+    CopyOnly(CopyOnly&&) = delete;
+    CopyOnly& operator=(CopyOnly&&) = delete;
+};
+Task<void> copyOnlySender(Queue<CopyOnly, 1>* q, int v, int* phase) {
+    co_await q->send(CopyOnly{v});
+    *phase = v;
+}
+Task<void> copyOnlyReceiver(Queue<CopyOnly, 1>* q, int* out) {
+    CopyOnly r = co_await q->receive();
+    *out = r.x;
+}
+
 // Lifetime-counting payload: proves construction/destruction balance exactly.
 struct Counted {
     static int live;
@@ -257,6 +280,45 @@ int main() {
         AA_CHECK(q.trySend(NoDefault{55}));
         poll();
         AA_CHECK(got == 55);
+        AA_CHECK(sch.activeTaskCount() == 0);
+    }
+
+    // ---- copy-only payload (deleted move ctor): every delivery path copies ----
+    {
+        // immediate buffer, via both trySend overloads, drained by tryReceive
+        Queue<CopyOnly, 2> q;
+        AA_CHECK(q.trySend(CopyOnly{11})); // trySend(T&&) copies (no move ctor)
+        const CopyOnly lv{12};
+        AA_CHECK(q.trySend(lv));           // trySend(const T&) copies
+        CopyOnly out{0};
+        AA_CHECK(q.tryReceive(out) && out.x == 11);
+        AA_CHECK(q.tryReceive(out) && out.x == 12);
+        AA_CHECK(q.empty());
+    }
+    {
+        // parked-sender path: co_await send on a full queue, admitted by copy
+        Queue<CopyOnly, 1> q;
+        AA_CHECK(q.trySend(CopyOnly{20})); // full
+        int sp = -1;
+        spawn(copyOnlySender(&q, 21, &sp));
+        poll(); // sender parks holding its copied value
+        AA_CHECK(sp == -1 && q.full());
+        CopyOnly out{0};
+        AA_CHECK(q.tryReceive(out) && out.x == 20); // admits the sender (copy to tail)
+        poll();
+        AA_CHECK(sp == 21);
+        AA_CHECK(q.tryReceive(out) && out.x == 21);
+        AA_CHECK(q.empty() && sch.activeTaskCount() == 0);
+    }
+    {
+        // direct-receiver path: a parked receiver, then trySend hands off by copy
+        Queue<CopyOnly, 1> q;
+        int got = -1;
+        spawn(copyOnlyReceiver(&q, &got));
+        poll(); // receiver parks (empty)
+        AA_CHECK(q.trySend(CopyOnly{30})); // direct copy hand-off to the receiver
+        poll();
+        AA_CHECK(got == 30);
         AA_CHECK(sch.activeTaskCount() == 0);
     }
 

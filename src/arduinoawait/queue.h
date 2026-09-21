@@ -40,7 +40,17 @@ public:
     Queue& operator=(const Queue&) = delete;
 
     ~Queue() {
-        // Parked waiters reference this queue; destroying it now would strand them.
+        // Detach any still-parked awaiter nodes so their destructors — which may run
+        // later, e.g. when the scheduler tears down the parked frames at shutdown,
+        // after this queue is already gone — do not touch this destroyed queue.
+        // Destroying a queue that still has live waiters remains a deterministic
+        // programming error.
+        for (SendAwaiter* s = send_head_; s != nullptr; s = s->next_) {
+            s->linked_ = false;
+        }
+        for (ReceiveAwaiter* r = recv_head_; r != nullptr; r = r->next_) {
+            r->linked_ = false;
+        }
         if (send_head_ != nullptr || recv_head_ != nullptr) {
             ARDUINOAWAIT_ON_ERROR(Error::object_destroyed_with_waiters);
         }
@@ -56,11 +66,18 @@ public:
     class SendAwaiter {
     public:
         SendAwaiter(Queue* q, const T& value) : q_(q), value_(value) {}
-        SendAwaiter(Queue* q, T&& value) : q_(q), value_(std::move(value)) {}
+        SendAwaiter(Queue* q, T&& value) : q_(q), value_(std::move_if_noexcept(value)) {}
         SendAwaiter(const SendAwaiter&) = delete;
         SendAwaiter& operator=(const SendAwaiter&) = delete;
+        ~SendAwaiter() {
+            if (linked_) {
+                q_->unlink_sender(this); // frame destroyed while still parked
+            }
+        }
 
-        bool await_ready() { return q_->do_send(std::move(value_)); }
+        // Deliver by move when T is nothrow-movable, else by copy: send(const T&)
+        // must accept a copy-only payload (frozen §11) that has no move constructor.
+        bool await_ready() { return q_->do_send(std::move_if_noexcept(value_)); }
         bool await_suspend(std::coroutine_handle<> awaiting) noexcept {
             return q_->park_sender(this, awaiting);
         }
@@ -72,6 +89,7 @@ public:
         T value_;
         SendAwaiter* next_ = nullptr;
         Scheduler::Slot* slot_ = nullptr;
+        bool linked_ = false;
     };
 
     // Suspends until a value is available. The result is placement-constructed into
@@ -83,6 +101,9 @@ public:
         ReceiveAwaiter(const ReceiveAwaiter&) = delete;
         ReceiveAwaiter& operator=(const ReceiveAwaiter&) = delete;
         ~ReceiveAwaiter() {
+            if (linked_) {
+                q_->unlink_receiver(this); // frame destroyed while still parked
+            }
             if (has_result_) {
                 result_ptr()->~T(); // constructed but never consumed (e.g. shutdown)
             }
@@ -92,7 +113,7 @@ public:
             if (q_->count_ == 0) {
                 return false;
             }
-            construct_result(std::move(*q_->storage_ptr(q_->head_)));
+            construct_result(std::move_if_noexcept(*q_->storage_ptr(q_->head_)));
             q_->pop_front_storage();
             q_->admit_oldest_sender();
             return true;
@@ -103,22 +124,39 @@ public:
         T await_resume() {
             // The result is present on the normal path (constructed in await_ready,
             // or handed off by a sender while parked). It is absent only when a
-            // foreign/nested await could not park: invalid_task was reported in
-            // await_suspend and production halts there. Under a continuing test hook
-            // synthesize a value when T allows; a non-default-constructible T in
-            // that case is a documented misuse (production has already halted).
+            // foreign/nested await could not park (invalid_task was reported in
+            // await_suspend and await_suspend returned false). In that case, for a
+            // default-constructible T return a value-initialized T; otherwise report
+            // and halt deterministically rather than fabricate a T.
             if (!has_result_) {
                 if constexpr (std::is_default_constructible_v<T>) {
                     return T{};
                 } else {
-                    ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+                    // No value exists and none can be synthesized for this T. Report
+                    // and never fall through: a configured hook that RETURNS must not
+                    // reach the move of a non-existent object (lifetime UB). Looping
+                    // the report is unconditionally non-returning yet leaves no
+                    // unreachable statement after a [[noreturn]] hook. Only reachable
+                    // via a foreign/nested await.
+                    for (;;) {
+                        ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+                    }
                 }
             }
-            T* p = result_ptr(); // reachable via the has_result_ path; no C4702
-            T value = std::move(*p);
-            p->~T();
-            has_result_ = false;
-            return value;
+            // Move/copy the stored result into the return object, then destroy the
+            // stored copy. Returning the move_if_noexcept EXPRESSION (not a named
+            // local) avoids selecting a deleted move constructor for a copy-only T,
+            // and the guard destroys the stored object AFTER the return value has
+            // been constructed. Reached only via the has_result_ path; no C4702.
+            struct ResultGuard {
+                T* p;
+                bool* consumed;
+                ~ResultGuard() {
+                    p->~T();
+                    *consumed = false;
+                }
+            } guard{result_ptr(), &has_result_};
+            return std::move_if_noexcept(*result_ptr());
         }
 
     private:
@@ -137,6 +175,7 @@ public:
         bool has_result_ = false;
         ReceiveAwaiter* next_ = nullptr;
         Scheduler::Slot* slot_ = nullptr;
+        bool linked_ = false;
     };
 
     [[nodiscard]] SendAwaiter send(const T& value) { return SendAwaiter{this, value}; }
@@ -144,12 +183,12 @@ public:
     [[nodiscard]] ReceiveAwaiter receive() noexcept { return ReceiveAwaiter{this}; }
 
     bool trySend(const T& value) { return do_send(value); }
-    bool trySend(T&& value) { return do_send(std::move(value)); }
+    bool trySend(T&& value) { return do_send(std::move_if_noexcept(value)); }
     bool tryReceive(T& out) {
         if (count_ == 0) {
             return false;
         }
-        out = std::move(*storage_ptr(head_));
+        out = std::move_if_noexcept(*storage_ptr(head_));
         pop_front_storage();
         admit_oldest_sender();
         return true;
@@ -206,7 +245,7 @@ private:
     void admit_oldest_sender() {
         if (send_head_ != nullptr) {
             SendAwaiter* s = send_pop_front();
-            store_back(std::move(s->value_));
+            store_back(std::move_if_noexcept(s->value_));
             scheduler().wake_slot(s->slot_);
         }
     }
@@ -222,6 +261,7 @@ private:
                 send_tail_->next_ = a;
             }
             send_tail_ = a;
+            a->linked_ = true;
             suspend = true;
         }
         return suspend; // foreign/nested await -> invalid_task, do not strand/park
@@ -233,7 +273,28 @@ private:
             send_tail_ = nullptr;
         }
         a->next_ = nullptr;
+        a->linked_ = false;
         return a;
+    }
+    // O(n) removal of a specific parked sender whose frame is being destroyed while
+    // still linked (e.g. scheduler shutdown). Permitted per the WaitQueue rules.
+    void unlink_sender(SendAwaiter* a) noexcept {
+        SendAwaiter* prev = nullptr;
+        for (SendAwaiter* s = send_head_; s != nullptr; prev = s, s = s->next_) {
+            if (s == a) {
+                if (prev == nullptr) {
+                    send_head_ = s->next_;
+                } else {
+                    prev->next_ = s->next_;
+                }
+                if (send_tail_ == s) {
+                    send_tail_ = prev;
+                }
+                break;
+            }
+        }
+        a->next_ = nullptr;
+        a->linked_ = false;
     }
 
     bool park_receiver(ReceiveAwaiter* a, std::coroutine_handle<> awaiting) noexcept {
@@ -247,6 +308,7 @@ private:
                 recv_tail_->next_ = a;
             }
             recv_tail_ = a;
+            a->linked_ = true;
             suspend = true;
         }
         return suspend;
@@ -258,7 +320,26 @@ private:
             recv_tail_ = nullptr;
         }
         a->next_ = nullptr;
+        a->linked_ = false;
         return a;
+    }
+    void unlink_receiver(ReceiveAwaiter* a) noexcept {
+        ReceiveAwaiter* prev = nullptr;
+        for (ReceiveAwaiter* r = recv_head_; r != nullptr; prev = r, r = r->next_) {
+            if (r == a) {
+                if (prev == nullptr) {
+                    recv_head_ = r->next_;
+                } else {
+                    prev->next_ = r->next_;
+                }
+                if (recv_tail_ == r) {
+                    recv_tail_ = prev;
+                }
+                break;
+            }
+        }
+        a->next_ = nullptr;
+        a->linked_ = false;
     }
 
     struct alignas(T) Cell {

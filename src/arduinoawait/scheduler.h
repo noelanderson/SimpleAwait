@@ -139,7 +139,7 @@ private:
     friend void detail::force_slot_generation(Scheduler&, TaskSlot, TaskGeneration) noexcept;
     friend class YieldAwaitable;
     friend class DelayAwaitable;
-    friend bool detail::start_child(std::coroutine_handle<>) noexcept;
+    friend bool detail::start_child(std::coroutine_handle<>, std::coroutine_handle<>) noexcept;
 
     static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;
 
@@ -334,14 +334,17 @@ private:
     // adopted (parent -> waiting_child, child runs on a later pass and enqueues
     // the parent on completion, ARCHITECTURE §19), or no slot was free so the
     // child is released and the parent requeued for a later resume. Returns false
-    // when there is no running ArduinoAwait parent (current_ == nullptr): the
-    // child is released and the error reported, and the foreign caller must resume
-    // rather than hang (it is never adopted by the scheduler).
-    bool start_child_await(std::coroutine_handle<> child) noexcept {
+    // when the awaiting coroutine is NOT the currently running ArduinoAwait task
+    // (no running parent, or a foreign/nested coroutine whose handle does not
+    // match current_): the child is released and the error reported, and the
+    // caller must resume rather than hang (it is never adopted).
+    bool start_child_await(std::coroutine_handle<> child,
+                           std::coroutine_handle<> awaiting) noexcept {
         Slot* parent = current_;
         bool suspend = true;
-        if (parent == nullptr) {
-            child.destroy(); // no running parent: do not strand a foreign caller
+        if (parent == nullptr || parent->state != State::running ||
+            parent->handle.address() != awaiting.address()) {
+            child.destroy(); // the awaiter is not the running task: do not adopt
             suspend = false;
             ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
         } else if (Slot* slot = acquire_slot(); slot == nullptr) {
@@ -435,8 +438,8 @@ namespace detail {
 inline void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration generation) noexcept {
     sched.slots_[slot].generation = generation;
 }
-inline bool start_child(std::coroutine_handle<> child) noexcept {
-    return scheduler().start_child_await(child);
+inline bool start_child(std::coroutine_handle<> child, std::coroutine_handle<> awaiting) noexcept {
+    return scheduler().start_child_await(child, awaiting);
 }
 } // namespace detail
 

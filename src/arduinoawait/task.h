@@ -39,10 +39,11 @@ inline constexpr bool task_type_unsupported = false;
 std::coroutine_handle<> take_frame(Task<void>& task) noexcept;
 
 // Returns true if the child was adopted by the scheduler (the awaiting coroutine
-// must stay suspended); false if there was no running ArduinoAwait parent to
-// attach it to (the error was reported and the caller must resume rather than
-// hang). Defined in scheduler.h.
-bool start_child(std::coroutine_handle<> child) noexcept;
+// must stay suspended); false if the awaiting coroutine is not the currently
+// running ArduinoAwait task (the error was reported and the caller must resume
+// rather than hang). `awaiting` is the coroutine actually suspending on this
+// await. Defined in scheduler.h.
+bool start_child(std::coroutine_handle<> child, std::coroutine_handle<> awaiting) noexcept;
 
 // Awaiter for `co_await` on a Task<void> (sequential child await). It is move-only
 // and RAII-owning: from the moment `operator co_await` consumes the Task until the
@@ -70,10 +71,13 @@ public:
     }
 
     bool await_ready() const noexcept { return was_empty_; }
-    bool await_suspend(std::coroutine_handle<>) noexcept {
+    bool await_suspend(std::coroutine_handle<> awaiting) noexcept {
         const std::coroutine_handle<> child = child_;
         child_ = {}; // hand ownership to the scheduler (or its failure path)
-        return start_child(child); // false -> no running parent -> do not suspend
+        // Pass the actual awaiting coroutine so the scheduler can confirm it is
+        // the running ArduinoAwait task before adoption; a foreign or nested
+        // coroutine must not be attached to an unrelated parent.
+        return start_child(child, awaiting);
     }
     void await_resume() const noexcept {
         if (was_empty_) {

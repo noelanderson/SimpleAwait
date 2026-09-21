@@ -54,6 +54,23 @@ EagerTask foreignParent() {
     co_await childOk(); // outside poll(): no running parent -> invalid_task, no strand
     ++g_foreign_after;  // reached: the caller resumes rather than hanging forever
 }
+
+int g_nested_after = 0;
+int g_outer_after = 0;
+
+// A foreign coroutine invoked synchronously from inside a running ArduinoAwait
+// task. current_ is non-null (the outer task), but the awaiting coroutine is THIS
+// foreign one, so the await must be rejected rather than attached to the outer.
+EagerTask nestedForeign() {
+    co_await childOk();
+    ++g_nested_after; // reached: the rejected foreign await lets the caller continue
+}
+
+Task<void> outerTask() {
+    nestedForeign(); // runs eagerly while outerTask is the currently running task
+    ++g_outer_after;
+    co_return;
+}
 } // namespace
 
 int main() {
@@ -82,6 +99,23 @@ int main() {
     AA_CHECK(g_foreign_after == 1); // caller resumed (not stranded forever)
     AA_CHECK(g_child_runs == 0);    // child never ran; its frame was released
     AA_CHECK(sch.activeTaskCount() == 0); // nothing left scheduled
+
+    // ---- a foreign await NESTED inside a running task is rejected, not misattached ----
+    g_last_error = -1;
+    g_child_runs = 0;
+    g_nested_after = 0;
+    g_outer_after = 0;
+    TaskHandle ho = create_task(outerTask());
+    int g2 = 0;
+    while (!ho.done() && g2++ < 20) {
+        poll();
+    }
+    AA_CHECK(ho.done());
+    AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
+    AA_CHECK(g_nested_after == 1); // foreign continuation ran (not stranded)
+    AA_CHECK(g_child_runs == 0);   // child rejected, never ran
+    AA_CHECK(g_outer_after == 1);  // outer task unaffected, completed normally
+    AA_CHECK(sch.activeTaskCount() == 0);
 
     AA_RUN_TESTS();
 }

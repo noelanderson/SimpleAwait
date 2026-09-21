@@ -140,6 +140,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             hardware/TimerWait
+      - name: Compile child await validation sketch (co_await child Task)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            hardware/ChildAwait
       - name: Compile 01_Blink golden example
         run: |
           arduino-cli compile \
@@ -158,6 +164,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             examples/03_YieldFairness
+      - name: Compile 04_ParentChild golden example
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            examples/04_ParentChild
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

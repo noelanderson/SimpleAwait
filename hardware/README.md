@@ -29,6 +29,10 @@ Current sketches:
   interval actually measured from the native 64-bit microsecond clock, while a
   second task yields continuously (confirming the sleeping timer task does not
   starve ready work). Forces the timer path to link the native clock backend.
+- `ChildAwait/` — M6: a parent task `co_await`s a sequence of child tasks (each
+  doing timed work) and confirms they complete in order, while a heartbeat task
+  runs concurrently. Forces the child-await path (`TaskAwaiter` -> scheduler
+  `start_child`) and the coroutine ABI to compile and link for the target.
 
 Additional target-specific validation is added as later milestones land (for
 example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).

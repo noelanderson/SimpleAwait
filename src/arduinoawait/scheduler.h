@@ -139,6 +139,7 @@ private:
     friend void detail::force_slot_generation(Scheduler&, TaskSlot, TaskGeneration) noexcept;
     friend class YieldAwaitable;
     friend class DelayAwaitable;
+    friend void detail::start_child(std::coroutine_handle<>) noexcept;
 
     static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;
 
@@ -167,11 +168,14 @@ private:
         return s.generation == id.generation && s.state == State::completed;
     }
 
-    enum class State : uint8_t { free, ready, running, waiting_timer, suspended, completed };
+    enum class State : uint8_t {
+        free, ready, running, waiting_timer, waiting_child, suspended, completed
+    };
 
     struct Slot {
         std::coroutine_handle<> handle{};
         Slot* next = nullptr;           // intrusive ready-FIFO link
+        Slot* parent = nullptr;         // awaiting parent when this is an awaited child
         detail::tick_t deadline_us = 0; // absolute wake deadline when waiting_timer
         TaskGeneration generation = 0;
         State state = State::free;
@@ -217,6 +221,7 @@ private:
             slot->handle = detail::take_frame(task); // transfer frame ownership
             slot->state = State::ready;
             slot->next = nullptr;
+            slot->parent = nullptr; // create_task/spawn tasks have no awaiting parent
             ready_push(slot);
             ++active_count_;
             result = TaskHandle{this, TaskId{index_of(slot), slot->generation}};
@@ -265,10 +270,20 @@ private:
             current_ = nullptr;
 
             if (slot->handle.done()) {
+                // Child-await completion (ARCHITECTURE §19): release the child
+                // frame exactly once, clear the linkage, then enqueue a waiting
+                // parent at the ready FIFO tail so it resumes on a LATER pass
+                // (no inline resume, no symmetric transfer).
+                Slot* parent = slot->parent;
                 slot->handle.destroy();
                 slot->handle = {};
+                slot->parent = nullptr;
                 slot->state = State::completed;
                 --active_count_;
+                if (parent != nullptr && parent->state == State::waiting_child) {
+                    parent->state = State::ready;
+                    ready_push(parent);
+                }
             } else if (slot->state == State::running) {
                 // Suspended without registering a wake source. No V1 awaitable does
                 // this (yield -> ready, delay -> waiting_timer); park it so it does
@@ -311,6 +326,34 @@ private:
             }
         } else {
             yield_current(); // overflow: hook fired; do not lose the task
+        }
+    }
+
+    // Start an awaited child of the currently running task (the parent). Transfers
+    // the child frame into a slot linked to the parent and moves the parent to
+    // waiting_child; the child runs on a later pass and, on completion, enqueues
+    // the parent (see run_pass, ARCHITECTURE §19). On slot exhaustion the child
+    // frame is released, the parent is requeued so it is not lost, and the error
+    // hook is invoked.
+    void start_child_await(std::coroutine_handle<> child) noexcept {
+        Slot* parent = current_;
+        if (Slot* slot = acquire_slot(); slot != nullptr) {
+            slot->handle = child;
+            slot->state = State::ready;
+            slot->next = nullptr;
+            slot->parent = parent;
+            ready_push(slot);
+            ++active_count_;
+            if (parent != nullptr) {
+                parent->state = State::waiting_child;
+            }
+        } else {
+            child.destroy(); // no slot for the child; release its frame
+            if (parent != nullptr) {
+                parent->state = State::ready; // requeue the parent so it is not stuck
+                ready_push(parent);
+            }
+            ARDUINOAWAIT_ON_ERROR(Error::task_limit);
         }
     }
 
@@ -387,6 +430,9 @@ inline void poll() { scheduler().poll(); }
 namespace detail {
 inline void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration generation) noexcept {
     sched.slots_[slot].generation = generation;
+}
+inline void start_child(std::coroutine_handle<> child) noexcept {
+    scheduler().start_child_await(child);
 }
 } // namespace detail
 

@@ -37,6 +37,32 @@ inline constexpr bool task_type_unsupported = false;
 // the scheduler to take ownership when a Task is scheduled. Defined after
 // Task<void>.
 std::coroutine_handle<> take_frame(Task<void>& task) noexcept;
+
+// Starts `child` as a child of the currently running task: transfers the frame to
+// the scheduler, links it to the parent, and moves the parent to waiting_child.
+// Defined in scheduler.h. On slot exhaustion it reports the error, releases the
+// child frame, and requeues the parent (fair fallback) so it is not lost.
+void start_child(std::coroutine_handle<> child) noexcept;
+
+// Awaiter for `co_await` on a Task<void> (sequential child await). It consumes
+// the child frame; awaiting an empty Task (default-constructed or already
+// consumed by a prior await) fails deterministically via the error hook
+// (task_awaited_twice) without suspending.
+class TaskAwaiter {
+public:
+    explicit TaskAwaiter(std::coroutine_handle<> child) noexcept : child_(child) {}
+
+    bool await_ready() const noexcept { return child_ == nullptr; }
+    void await_suspend(std::coroutine_handle<>) const noexcept { start_child(child_); }
+    void await_resume() const noexcept {
+        if (child_ == nullptr) {
+            ARDUINOAWAIT_ON_ERROR(Error::task_awaited_twice);
+        }
+    }
+
+private:
+    std::coroutine_handle<> child_;
+};
 } // namespace detail
 
 // Primary template: any Task<T> other than Task<void> is unsupported in V1.
@@ -81,7 +107,16 @@ public:
     // True iff this Task owns a coroutine frame.
     explicit operator bool() const noexcept { return static_cast<bool>(handle_); }
 
-    // operator co_await() && (sequential child await) is added in a later milestone.
+    // Sequential child await: `co_await foo()` runs the child Task to completion
+    // as a child of the awaiting task, then resumes the parent on a LATER poll
+    // pass (no inline resume, no symmetric transfer). Awaiting consumes this Task
+    // (rvalue-qualified); a second await of the now-empty Task fails
+    // deterministically via the error hook.
+    detail::TaskAwaiter operator co_await() && noexcept {
+        const std::coroutine_handle<> child = handle_;
+        handle_ = {};
+        return detail::TaskAwaiter{child};
+    }
 
 private:
     explicit Task(handle_type h) noexcept : handle_(h) {}

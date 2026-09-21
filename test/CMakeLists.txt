@@ -83,6 +83,9 @@ arduinoawait_add_host_test(test_m4_poll_clock test_m4_poll_clock.cpp)
 arduinoawait_add_host_test(test_m4_shutdown test_m4_shutdown.cpp)
 arduinoawait_add_host_test(test_m5_timers test_m5_timers.cpp)
 arduinoawait_add_host_test(test_m5_overflow test_m5_overflow.cpp)
+arduinoawait_add_host_test(test_m6_childawait test_m6_childawait.cpp)
+arduinoawait_add_host_test(test_m6_errors test_m6_errors.cpp)
+arduinoawait_add_host_test(test_m6_exhaust test_m6_exhaust.cpp)
 
 # The default error hook must terminate deterministically.
 arduinoawait_add_death_test(test_m0_default_error test_m0_default_error.cpp)

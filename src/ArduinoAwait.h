@@ -17,13 +17,13 @@
 //  See docs/arduinoawait/V1_API_CONTRACT.md for the frozen public API and
 //  docs/arduinoawait/ARCHITECTURE.md for the normative design.
 //
-//  Milestone status: M5 (yield/delay/timer waits). Adds cooperative timing on top
-//  of the M4 scheduler: yield() and delay()/delay_ms()/delay_us() awaitables, a
-//  fixed per-slot timer wait with a cached nearest-deadline O(1) idle fast path,
-//  and deterministic equal-deadline ordering. poll() now processes due timers
-//  before the pass budget (ARCHITECTURE §9 step 5). Parent/child await and the
-//  synchronization primitives arrive in later milestones without changing this
-//  include path.
+//  Milestone status: M6 (parent/child await). Adds sequential child await on top
+//  of M5: `co_await someTask()` runs the child Task to completion as a child of
+//  the awaiting task — transferring the child frame into the scheduler, moving the
+//  parent to waiting_child, and enqueuing the parent at the ready FIFO tail on
+//  child completion (a later pass; no inline resume, no symmetric transfer). The
+//  synchronization primitives (Event, ThreadSafeFlag, Queue) and waitUntil arrive
+//  in later milestones without changing this include path.
 // ============================================================================
 
 // Compile-time coroutine support verification. Must come first so an

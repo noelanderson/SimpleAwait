@@ -7,6 +7,39 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M6: Parent/child await
+
+- `Task<void>::operator co_await() && noexcept` (`src/arduinoawait/task.h`) — the
+  frozen V1 sequential child await (V1_API_CONTRACT §4). `co_await someTask()` runs
+  the child Task to completion as a child of the awaiting task. Awaiting consumes
+  the Task (rvalue-qualified): it transfers the child's coroutine frame into the
+  scheduler and empties the Task, so a second await of the now-empty Task fails
+  deterministically via the error hook (`Error::task_awaited_twice`) without
+  suspending or hanging.
+- The scheduler (`src/arduinoawait/scheduler.h`) gains a `waiting_child` state and
+  a per-slot `parent` link (no heap; the child reuses the fixed slot pool via the
+  same `acquire_slot`/frame ownership as `create_task`). `detail::start_child()`
+  transfers the child frame into a slot linked to the running parent and moves the
+  parent to `waiting_child`. On child completion `poll()`/`run_pass` releases the
+  child frame exactly once, clears the linkage, and enqueues the parent at the
+  ready FIFO **tail** so it resumes on a LATER pass (ARCHITECTURE §19 — no inline
+  resume, no symmetric transfer). Nested children compose naturally (each level
+  links to its parent). If no slot is available for the child, the scheduler
+  reports `Error::task_limit`, releases the child frame, and requeues the parent so
+  it is not lost.
+- Host tests (MSVC + Clang 23.1.1, C++20 and C++23): `test_m6_childawait` (parent
+  does not resume before the child completes; parent resumes on a later pass, not
+  inline; nested parent→child→grandchild ordering; a child that itself suspends on
+  a timer while the parent waits; and full frame-pool recovery after 50 rounds of
+  nested-child stress — the M6 gate — plus a global new/delete no-heap canary),
+  `test_m6_errors` (second await → `task_awaited_twice`, child ran exactly once,
+  coroutine continues), and `test_m6_exhaust` (single-slot child-await exhaustion →
+  `task_limit`, child frame released, parent requeued).
+- Golden example `examples/04_ParentChild` (a parent sequences child steps via
+  `co_await`, with a concurrent heartbeat task). `hardware/ChildAwait` validation
+  sketch runs a parent/child chain on-target. All compile for RP2040 and RP2350
+  (Arm and RISC-V).
+
 ### Added — M5: yield(), delay(), and timer waits
 
 - `arduinoawait::yield()` (`YieldAwaitable`) and `arduinoawait::delay(uint32_t ms)`

@@ -31,12 +31,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   is safe inside an ISR (same-core IRQ exclusion; a spinlock override is available
   for cross-core core1->core0 signaling), ESP32 a FreeRTOS `portMUX` spinlock (IRQ +
   multicore), and a host no-op (single-threaded deterministic tests). A generic
-  Arduino target (no first-class core, no override) is UNSUPPORTED-on-use: it has no
-  portable way to restore the prior interrupt state (`noInterrupts()`/`interrupts()`
-  would unconditionally re-enable interrupts on exit, unsafe inside an ISR), so
-  constructing the critical section is a compile error steering the user to the
-  `ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE` or a first-class target — the type is
-  inert until constructed, so the rest of the library still works there. The
+  Arduino target (no first-class core, no override) is UNSUPPORTED: there is no
+  portable way to restore the prior interrupt state, and the scheduler's external-
+  signal poll step (`detail::poll_external_signals`, run by `poll()` every pass)
+  needs a usable critical section, so the umbrella `<ArduinoAwait.h>` fails to
+  compile with a `#error` directing the user to the
+  `ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE` or a first-class target. The
   scheduler gains a `detail::poll_external_signals()` step-4 hook and private
   `running_is()`/`park_running()`/`wake_slot()` helpers; `ThreadSafeFlag` is a friend
   of `Scheduler`, so the frozen §7 surface is unchanged.
@@ -49,8 +49,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   `invalid_task`; a foreign/nested await takes precedence over the single-waiter
   check -> `invalid_task`, never masked as `multiple_flag_waiters`; destroy-with-
   waiter -> `object_destroyed_with_waiters`), plus a negative-compile regression
-  (`neg_flag_generic_unsupported`) asserting generic-Arduino ThreadSafeFlag use is
-  rejected. The host critical section is a no-op, so these exercise the STATE
+  (`neg_flag_generic_unsupported`) asserting the umbrella header is rejected on a
+  generic Arduino target without an override. The host critical section is a no-op, so these exercise the STATE
   MACHINE deterministically; real on-device IRQ/multicore safety is validated by the
   `hardware/FlagIRQ` stress sketch as a pre-V1-release gate (AGENTS.md §16) and is
   NOT yet run on hardware.

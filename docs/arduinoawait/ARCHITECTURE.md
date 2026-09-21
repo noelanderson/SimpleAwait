@@ -526,7 +526,7 @@ The `detail::CriticalSection` that guards `ThreadSafeFlag::set()` selects exactl
 | --- | --- | --- |
 | RP2040 / RP2350 | `save_and_disable_interrupts()` / `restore_interrupts()` (state-preserving) | Same-core ISR/callback context. Cross-core (core1 → core0) `set()` is NOT guaranteed by the shipped backend and requires an override that adds a cross-core spinlock. |
 | ESP32 family | FreeRTOS `portMUX` spinlock (`portENTER_CRITICAL_SAFE`) | ISR/callback and cross-core context (IRQ + multicore safe). |
-| Generic Arduino (no first-class core, no override) | Unsupported-on-use | None. There is no portable way to restore the prior interrupt state, so constructing the critical section is a compile error; supply an override or use a first-class target. The rest of the library (scheduler, timers, `Event`, `Queue`) still works. |
+| Generic Arduino (no first-class core, no override) | Unsupported (`#error` on include) | None. There is no portable way to restore the prior interrupt state, and the scheduler's external-signal poll step (`detail::poll_external_signals`, run by `poll()` every pass) needs a usable critical section, so the umbrella `<ArduinoAwait.h>` does not compile. Supply an override or use a first-class target. |
 | Host | No-op | Deterministic single-threaded tests only; exercises the state machine, not real concurrency. |
 
 The RP2040/RP2350 same-core guarantee is the V1 first-class scope; a first-class cross-core backend is out of scope for V1 (§18 optimization deferrals). On-device IRQ-stress validation of these backends is a pre-release gate (AGENTS.md §16), executed by `hardware/FlagIRQ`.

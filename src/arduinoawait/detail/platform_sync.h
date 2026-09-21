@@ -16,10 +16,11 @@
 //                         needs a spinlock — supply the override to add one until a
 //                         first-class multicore backend lands.
 //   ARDUINO_ARCH_ESP32    ESP32 family: a portMUX spinlock (IRQ + multicore safe)
-//   ARDUINO (generic)     UNSUPPORTED for ISR use: there is no portable way to
-//                         restore the prior interrupt state, so ThreadSafeFlag's
-//                         external signaling is a compile error unless the override
-//                         is provided (the rest of the library still works).
+//   ARDUINO (generic)     UNSUPPORTED: there is no portable way to restore the
+//                         prior interrupt state, and the scheduler's external-
+//                         signal poll step needs a usable critical section, so the
+//                         umbrella header fails to compile (#error) unless the
+//                         override is provided.
 //   host (none)           no-op: host tests are single-threaded; the state machine
 //                         is exercised deterministically without real concurrency.
 //
@@ -82,38 +83,15 @@ public:
 
 #elif defined(ARDUINO)
 
-namespace arduinoawait {
-namespace detail {
-template <class>
-inline constexpr bool aa_cs_unsupported = false;
-
-// Generic Arduino target with no first-class backend. There is no PORTABLE way to
-// save and restore the interrupt-enable state here: noInterrupts()/interrupts()
-// would unconditionally re-enable interrupts on exit, which is unsafe inside an
-// ISR (it can enable nested interrupts before the original handler returns). So
-// ThreadSafeFlag's external/IRQ signaling is not supported out of the box on such
-// targets. This type is inert until CONSTRUCTED, so including <ArduinoAwait.h> and
-// using the rest of the library (scheduler, timers, Event, Queue) remains fine;
-// only ThreadSafeFlag (which needs the critical section) triggers the diagnostic.
-template <class T = void>
-class CriticalSectionUnsupported {
-public:
-    CriticalSectionUnsupported() noexcept {
-        static_assert(aa_cs_unsupported<T>,
-                      "ThreadSafeFlag external/IRQ signaling has no safe critical "
-                      "section on this generic Arduino target: noInterrupts()/"
-                      "interrupts() cannot restore the prior interrupt state. Define "
-                      "ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE with a state-preserving "
-                      "critical section for your MCU, or use a first-class target "
-                      "(RP2040/RP2350/ESP32). The rest of the library needs no such "
-                      "section.");
-    }
-    CriticalSectionUnsupported(const CriticalSectionUnsupported&) = delete;
-    CriticalSectionUnsupported& operator=(const CriticalSectionUnsupported&) = delete;
-};
-using CriticalSection = CriticalSectionUnsupported<>;
-} // namespace detail
-} // namespace arduinoawait
+// Generic Arduino target with no first-class backend and no override. There is no
+// PORTABLE way to save and restore the interrupt-enable state here: noInterrupts()/
+// interrupts() cannot restore the prior state, which is unsafe inside an ISR. This
+// is not merely a ThreadSafeFlag concern — the scheduler's external-signal poll
+// step (detail::poll_external_signals, run by poll() every pass) also needs a
+// usable critical section — so the umbrella <ArduinoAwait.h> cannot be compiled
+// safely on such a target. Fail loudly and deterministically on include with a
+// directive rather than emitting unsafe or silently-incorrect code.
+#error "ArduinoAwait: generic Arduino targets require ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE (there is no portable ISR-safe critical section); use a first-class target (RP2040/RP2350/ESP32) or supply the override."
 
 #else
 

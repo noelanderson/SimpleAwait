@@ -7,6 +7,44 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M8: ThreadSafeFlag and external/IRQ signaling
+
+- `arduinoawait::ThreadSafeFlag` (`src/arduinoawait/threadsafeflag.h`) — the frozen
+  V1 single-waiter, auto-reset, coalescing external-context signal bridge
+  (V1_API_CONTRACT §10, ARCHITECTURE §16). `set()` is the only method callable from
+  a supported external/IRQ/callback/other-core context: under a short platform
+  critical section it marks the flag signaled and the scheduler externally-pending,
+  then returns — it never manipulates scheduler lists and never resumes coroutine
+  code. `poll()` resolves pending signals in scheduler context (ARCHITECTURE §9
+  step 4) and wakes the single waiter for a later pass. `co_await flag.wait()` on a
+  set flag consumes the signal without suspending (auto-reset); a wait before the
+  signal suspends until a later poll resolves it; repeated `set()` while signaled
+  coalesces into one pending signal. A second simultaneous waiter is a
+  deterministic error (`multiple_flag_waiters`); a foreign/nested await (the
+  awaiting coroutine is not the running task) is rejected with `invalid_task`
+  rather than stranded; destroying a flag with a parked waiter raises
+  `object_destroyed_with_waiters` (and unarms it first for safety).
+- `detail::CriticalSection` (`src/arduinoawait/detail/platform_sync.h`) — the
+  platform short critical section that owns cross-context ordering (do not assume
+  `std::atomic` is ISR-safe on every target). Backends: RP2040/RP2350
+  `save_and_disable_interrupts()` (same-core IRQ; a spinlock override is available
+  for cross-core), ESP32 a FreeRTOS `portMUX` spinlock (IRQ + multicore), generic
+  Arduino `noInterrupts()`, and a host no-op (single-threaded deterministic tests).
+  The scheduler gains a `detail::poll_external_signals()` step-4 hook and a private
+  `try_park_current()`/`wake_slot()`; `ThreadSafeFlag` is a friend of `Scheduler`,
+  so the frozen §7 surface is unchanged.
+- Host tests (MSVC + Clang 23.1.1, C++20 and C++23): `test_m8_flag` (wait-before-set
+  with set() never resuming inline; set-before-wait completing without suspension;
+  repeated set() coalescing; auto-reset on consume; no-heap canary) and
+  `test_m8_errors` (second waiter -> `multiple_flag_waiters`; foreign wait outside
+  poll() -> `invalid_task`; destroy-with-waiter -> `object_destroyed_with_waiters`).
+  The host critical section is a no-op, so the state machine is exercised
+  deterministically; real IRQ/multicore safety is validated on hardware.
+- Golden example `examples/06_ThreadSafeFlagIRQ` (a pin interrupt calls
+  `ThreadSafeFlag::set()`; a coroutine `co_await`s it). `hardware/FlagIRQ`
+  validation sketch measures IRQ -> coroutine wake latency on-target. All compile
+  for RP2040 and RP2350 (Arm and RISC-V).
+
 ### Added — M7: WaitQueue and Event
 
 - `arduinoawait::Event` (`src/arduinoawait/event.h`) — the frozen V1 scheduler-

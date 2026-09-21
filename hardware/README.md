@@ -37,6 +37,12 @@ Current sketches:
   controller `set()`s it to release them and reports whether the wake order was
   FIFO, then `clear()`s it for the next round. Forces the Event / WaitQueue path
   (park in `waiting_local`, `wake_all` to the ready FIFO) to compile and link.
+- `FlagIRQ/` — M8: a pin-change interrupt timestamps the event and calls
+  `ThreadSafeFlag::set()` from ISR context; a coroutine `co_await`s the flag and
+  reports the IRQ -> coroutine wake latency from the native clock, while a
+  heartbeat task runs concurrently. Forces the external-signal path (platform
+  `CriticalSection`, ISR `set()`, the scheduler external-pending resolution) to
+  compile and link, and confirms an ISR reliably wakes a waiting coroutine.
 
 Additional target-specific validation is added as later milestones land (for
 example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).

@@ -152,6 +152,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             hardware/EventWake
+      - name: Compile flag IRQ validation sketch (ThreadSafeFlag from an ISR)
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            hardware/FlagIRQ
       - name: Compile 01_Blink golden example
         run: |
           arduino-cli compile \
@@ -182,6 +188,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             examples/05_Event
+      - name: Compile 06_ThreadSafeFlagIRQ golden example
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            examples/06_ThreadSafeFlagIRQ
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

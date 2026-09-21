@@ -17,13 +17,13 @@
 //  See docs/arduinoawait/V1_API_CONTRACT.md for the frozen public API and
 //  docs/arduinoawait/ARCHITECTURE.md for the normative design.
 //
-//  Milestone status: M7 (WaitQueue + Event). Adds scheduler-local synchronization
-//  on top of M6: an intrusive FIFO WaitQueue and a manual-reset, multi-waiter
-//  Event (wait/set/clear/isSet). wait() on a clear Event parks the task
-//  (waiting_local); set() latches the Event and wakes all waiters FIFO for a
-//  later pass; destroying an Event with waiters is a deterministic error.
-//  ThreadSafeFlag, Queue, and waitUntil arrive in later milestones without
-//  changing this include path.
+//  Milestone status: M8 (ThreadSafeFlag + external signaling). Adds the external-
+//  context bridge on top of M7: a single-waiter, auto-reset, coalescing
+//  ThreadSafeFlag whose set() is safe from a supported IRQ/callback/other-core
+//  context (short platform critical section; never resumes coroutine code), plus a
+//  scheduler external-pending marker resolved at the start of poll() (§9 step 4).
+//  Queue and waitUntil arrive in later milestones without changing this include
+//  path.
 // ============================================================================
 
 // Compile-time coroutine support verification. Must come first so an
@@ -57,6 +57,9 @@
 
 // Event: scheduler-local, manual-reset, multi-waiter synchronization.
 #include "arduinoawait/event.h"
+
+// ThreadSafeFlag: single-waiter external/IRQ-context signal bridge.
+#include "arduinoawait/threadsafeflag.h"
 
 namespace arduinoawait {
 

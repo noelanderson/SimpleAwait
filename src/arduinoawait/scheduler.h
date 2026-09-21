@@ -72,12 +72,19 @@ namespace detail {
 // Test-only seam: force a scheduler slot's generation, to exercise generation
 // retirement near the uint32 boundary without 2^32 real reuses. NOT public API.
 void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration generation) noexcept;
+
+// Resolve pending external signals (ThreadSafeFlag::set() from an IRQ/other core)
+// in scheduler context: wake the waiter of each signaled flag. Defined in
+// threadsafeflag.h; called by poll() (ARCHITECTURE §9 step 4). A no-op when no
+// external signal is pending.
+void poll_external_signals() noexcept;
 } // namespace detail
 
 // Timer/yield awaitables (V1_API_CONTRACT §8). Forward-declared so the Scheduler
 // can grant them access to the running task's suspend/timer hooks.
 class YieldAwaitable;
 class DelayAwaitable;
+class ThreadSafeFlag;
 
 class Scheduler {
 public:
@@ -122,6 +129,7 @@ public:
         } else {
             in_poll_ = true;
             now_ = detail::platform_now_us(); // §9 step 1: sample the 64-bit clock
+            detail::poll_external_signals();  // §9 step 4: external (ISR) signals
             process_due_timers();             // §9 step 5: enqueue due timers (deterministic)
             run_pass();
             in_poll_ = false;
@@ -141,6 +149,8 @@ private:
     friend class DelayAwaitable;
     friend bool detail::start_child(std::coroutine_handle<>, std::coroutine_handle<>) noexcept;
     friend class Event;
+    friend class ThreadSafeFlag;
+    friend void detail::poll_external_signals() noexcept;
 
     static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;
 
@@ -421,6 +431,32 @@ private:
     // runs on a later pass; appending keeps it behind tasks already ready.
     void wake_all(WaitQueue& q) noexcept {
         while (Slot* s = q.pop_front()) {
+            s->state = State::ready;
+            ready_push(s);
+        }
+    }
+
+    // Park the currently running task as a single external-flag waiter and return
+    // it, or reject a foreign/nested await (returns nullptr). Mirrors wait_on's
+    // awaiting-handle validation. Used by ThreadSafeFlag.
+    Slot* try_park_current(std::coroutine_handle<> awaiting) noexcept {
+        Slot* self = current_;
+        Slot* parked = nullptr;
+        if (self != nullptr && self->state == State::running &&
+            self->handle.address() == awaiting.address()) {
+            self->state = State::waiting_local;
+            parked = self;
+        } else {
+            ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+        }
+        return parked;
+    }
+
+    // Move a single parked slot to the ready FIFO (external-signal wake). The ISR
+    // never calls this; it runs only in scheduler context from poll()'s external
+    // signal resolution.
+    void wake_slot(Slot* s) noexcept {
+        if (s != nullptr) {
             s->state = State::ready;
             ready_push(s);
         }

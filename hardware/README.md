@@ -37,12 +37,19 @@ Current sketches:
   controller `set()`s it to release them and reports whether the wake order was
   FIFO, then `clear()`s it for the next round. Forces the Event / WaitQueue path
   (park in `waiting_local`, `wake_all` to the ready FIFO) to compile and link.
-- `FlagIRQ/` — M8: a pin-change interrupt timestamps the event and calls
-  `ThreadSafeFlag::set()` from ISR context; a coroutine `co_await`s the flag and
-  reports the IRQ -> coroutine wake latency from the native clock, while a
-  heartbeat task runs concurrently. Forces the external-signal path (platform
-  `CriticalSection`, ISR `set()`, the scheduler external-pending resolution) to
-  compile and link, and confirms an ISR reliably wakes a waiting coroutine.
+- `FlagIRQ/` — M8: a SELF-DRIVING IRQ-storm stress test. A repeating hardware-timer
+  interrupt (RP2040/RP2350 repeating timer; ESP32 `hw_timer`) calls
+  `ThreadSafeFlag::set()` from ISR context at a fixed rate; a coroutine `co_await`s
+  the flag while a heartbeat task runs concurrently. After a fixed number of signals
+  it prints a deterministic `RESULT=PASS`/`FAIL` verdict over Serial covering
+  liveness, coalescing (`wakes <= signals`), no coroutine body ever running in ISR
+  context, and a watchdog drain of a final signal. The shared 64-bit ISR timestamp
+  is read/written under the `CriticalSection` so it cannot tear on 32-bit cores.
+  Forces the external-signal path (platform `CriticalSection`, ISR `set()`, the
+  scheduler external-pending resolution) to compile and link, and produces on-device
+  pass/fail evidence that an ISR reliably wakes a waiting coroutine without resuming
+  coroutine code from the ISR. On-device RUN is a pre-V1-release gate (AGENTS.md
+  §16); host CI only compiles it.
 
 Additional target-specific validation is added as later milestones land (for
 example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).

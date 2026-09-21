@@ -155,6 +155,25 @@ add_test(NAME neg_scheduler_capacity_rejected
         "-DAA_CONFIG=$<CONFIG>"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
 
+# Persistent negative-compile regression: on a generic Arduino target (ARDUINO
+# defined, no first-class core, no override) ThreadSafeFlag's critical section has
+# no portable state-preserving implementation, so constructing it must be a compile
+# error rather than emitting ISR-unsafe noInterrupts()/interrupts() code (M8 H1).
+add_executable(neg_flag_generic_unsupported EXCLUDE_FROM_ALL neg_flag_generic_unsupported.cpp)
+target_link_libraries(neg_flag_generic_unsupported PRIVATE arduinoawait::arduinoawait)
+set_target_properties(neg_flag_generic_unsupported PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF)
+add_test(NAME neg_flag_generic_unsupported_rejected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DAA_CMAKE=${CMAKE_COMMAND}"
+        "-DAA_BUILD_DIR=${CMAKE_BINARY_DIR}"
+        "-DAA_TARGET=neg_flag_generic_unsupported"
+        "-DAA_DIAGNOSTIC=ThreadSafeFlag external/IRQ signaling has no safe critical"
+        "-DAA_CONFIG=$<CONFIG>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
+
 # Metadata gate self-test (fail-closed behavior of lint_metadata_gate.py).
 if(Python3_FOUND)
     add_test(NAME test_lint_gate

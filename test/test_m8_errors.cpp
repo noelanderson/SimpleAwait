@@ -16,11 +16,13 @@ namespace { int g_last_error = -1; unsigned long long g_now = 0; }
 
 #include "aa_test.h"
 
+using arduinoawait::create_task;
 using arduinoawait::Error;
 using arduinoawait::poll;
 using arduinoawait::scheduler;
 using arduinoawait::spawn;
 using arduinoawait::Task;
+using arduinoawait::TaskHandle;
 using arduinoawait::ThreadSafeFlag;
 
 namespace {
@@ -55,6 +57,19 @@ ThreadSafeFlag* g_foreign_flag = nullptr;
 EagerTask foreignWaiter() {
     co_await g_foreign_flag->wait(); // outside poll(): no running task -> invalid_task
     ++g_foreign_after;
+}
+
+int g_nested_after = 0;
+int g_outer_after = 0;
+ThreadSafeFlag* g_nested_flag = nullptr;
+EagerTask nestedForeign() {
+    co_await g_nested_flag->wait(); // awaiting handle != the running (outer) task
+    ++g_nested_after;
+}
+Task<void> outerLaunch() {
+    nestedForeign(); // a foreign nested await, launched from within a running task
+    ++g_outer_after;
+    co_return;
 }
 } // namespace
 
@@ -92,6 +107,33 @@ int main() {
         AA_CHECK(g_foreign_after == 1); // caller resumed, not stranded
         AA_CHECK(!flag.isSet());
         // flag has no waiter (rejected before arming) -> its destructor is clean
+    }
+
+    // ---- foreign/nested await takes precedence over the single-waiter check ----
+    // A real waiter is parked, THEN a foreign nested coroutine awaits the SAME flag
+    // from inside a running task. The foreign await must be reported as invalid_task
+    // (never masked as multiple_flag_waiters), must not suspend, and must leave the
+    // existing waiter untouched.
+    {
+        ThreadSafeFlag flag;
+        g_a_phase = 0;
+        g_nested_after = 0;
+        g_outer_after = 0;
+        g_nested_flag = &flag;
+        spawn(waiterA(&flag));
+        poll(); // A parks as the single waiter
+        AA_CHECK(g_a_phase == 1);
+        g_last_error = -1;
+        spawn(outerLaunch()); // foreign nested await while A is parked + a task runs
+        poll();
+        AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task)); // not multiple_flag_waiters
+        AA_CHECK(g_nested_after == 1); // foreign continuation ran (not stranded)
+        AA_CHECK(g_outer_after == 1);  // outer task completed
+        AA_CHECK(g_a_phase == 1);      // A still the sole waiter, untouched
+        flag.set();
+        poll();
+        AA_CHECK(g_a_phase == 2); // A still wakes normally afterward
+        AA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- destroying a flag with a parked waiter is a deterministic error ----

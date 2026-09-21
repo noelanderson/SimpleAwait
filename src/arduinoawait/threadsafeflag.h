@@ -84,19 +84,21 @@ private:
     }
 
     // Park the running task as this flag's single waiter. Returns true if the
-    // caller must stay suspended; false if there is already a waiter (second
-    // waiter -> error) or the awaiting coroutine is not the running task.
+    // caller must stay suspended; false otherwise. The awaiting-handle validation
+    // takes PRECEDENCE over the single-waiter check: a foreign/nested await is
+    // always invalid_task (never masked by multiple_flag_waiters), and it neither
+    // suspends the caller nor mutates the flag.
     bool park(std::coroutine_handle<> awaiting) noexcept {
         bool suspend = false;
-        if (waiter_ != nullptr) {
+        if (!scheduler().running_is(awaiting)) {
+            // foreign/nested await: invalid_task reported; do not suspend or arm
+        } else if (waiter_ != nullptr) {
             ARDUINOAWAIT_ON_ERROR(Error::multiple_flag_waiters);
-        } else if (Scheduler::Slot* self = scheduler().try_park_current(awaiting);
-                   self != nullptr) {
-            waiter_ = self;
+        } else {
+            waiter_ = scheduler().park_running();
             arm();
             suspend = true;
         }
-        // else: foreign/nested await (try_park_current reported invalid_task).
         return suspend; // reachable via the success path; no code after a hook
     }
 

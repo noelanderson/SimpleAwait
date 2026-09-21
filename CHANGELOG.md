@@ -27,23 +27,41 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - `detail::CriticalSection` (`src/arduinoawait/detail/platform_sync.h`) — the
   platform short critical section that owns cross-context ordering (do not assume
   `std::atomic` is ISR-safe on every target). Backends: RP2040/RP2350
-  `save_and_disable_interrupts()` (same-core IRQ; a spinlock override is available
-  for cross-core), ESP32 a FreeRTOS `portMUX` spinlock (IRQ + multicore), generic
-  Arduino `noInterrupts()`, and a host no-op (single-threaded deterministic tests).
-  The scheduler gains a `detail::poll_external_signals()` step-4 hook and a private
-  `try_park_current()`/`wake_slot()`; `ThreadSafeFlag` is a friend of `Scheduler`,
-  so the frozen §7 surface is unchanged.
+  `save_and_disable_interrupts()`/`restore_interrupts()` — STATE-PRESERVING, so it
+  is safe inside an ISR (same-core IRQ exclusion; a spinlock override is available
+  for cross-core core1->core0 signaling), ESP32 a FreeRTOS `portMUX` spinlock (IRQ +
+  multicore), and a host no-op (single-threaded deterministic tests). A generic
+  Arduino target (no first-class core, no override) is UNSUPPORTED-on-use: it has no
+  portable way to restore the prior interrupt state (`noInterrupts()`/`interrupts()`
+  would unconditionally re-enable interrupts on exit, unsafe inside an ISR), so
+  constructing the critical section is a compile error steering the user to the
+  `ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE` or a first-class target — the type is
+  inert until constructed, so the rest of the library still works there. The
+  scheduler gains a `detail::poll_external_signals()` step-4 hook and private
+  `running_is()`/`park_running()`/`wake_slot()` helpers; `ThreadSafeFlag` is a friend
+  of `Scheduler`, so the frozen §7 surface is unchanged.
 - Host tests (MSVC + Clang 23.1.1, C++20 and C++23): `test_m8_flag` (wait-before-set
   with set() never resuming inline; set-before-wait completing without suspension;
-  repeated set() coalescing; auto-reset on consume; no-heap canary) and
-  `test_m8_errors` (second waiter -> `multiple_flag_waiters`; foreign wait outside
-  poll() -> `invalid_task`; destroy-with-waiter -> `object_destroyed_with_waiters`).
-  The host critical section is a no-op, so the state machine is exercised
-  deterministically; real IRQ/multicore safety is validated on hardware.
+  repeated set() coalescing; auto-reset on consume; a signal injected in the
+  `await_ready`/`await_suspend` window is not lost; the armed list wakes exactly the
+  signaled flags with head/middle/tail removal; no-heap canary) and `test_m8_errors`
+  (second waiter -> `multiple_flag_waiters`; foreign wait outside poll() ->
+  `invalid_task`; a foreign/nested await takes precedence over the single-waiter
+  check -> `invalid_task`, never masked as `multiple_flag_waiters`; destroy-with-
+  waiter -> `object_destroyed_with_waiters`), plus a negative-compile regression
+  (`neg_flag_generic_unsupported`) asserting generic-Arduino ThreadSafeFlag use is
+  rejected. The host critical section is a no-op, so these exercise the STATE
+  MACHINE deterministically; real on-device IRQ/multicore safety is validated by the
+  `hardware/FlagIRQ` stress sketch as a pre-V1-release gate (AGENTS.md §16) and is
+  NOT yet run on hardware.
 - Golden example `examples/06_ThreadSafeFlagIRQ` (a pin interrupt calls
-  `ThreadSafeFlag::set()`; a coroutine `co_await`s it). `hardware/FlagIRQ`
-  validation sketch measures IRQ -> coroutine wake latency on-target. All compile
-  for RP2040 and RP2350 (Arm and RISC-V).
+  `ThreadSafeFlag::set()`; a coroutine `co_await`s it). `hardware/FlagIRQ` is a
+  self-driving IRQ-storm stress sketch: a repeating hardware-timer ISR calls `set()`
+  at a fixed rate and the sketch prints a deterministic `RESULT=PASS`/`FAIL` verdict
+  over Serial (liveness, coalescing `wakes<=signals`, no coroutine body ever running
+  in ISR context, and a watchdog drain), reading its shared 64-bit ISR timestamp
+  under the critical section so it cannot tear on 32-bit cores. Both compile for
+  RP2040 and RP2350 (Arm and RISC-V); the on-device RUN remains a pre-release gate.
 
 ### Added — M7: WaitQueue and Event
 

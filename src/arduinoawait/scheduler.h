@@ -436,20 +436,23 @@ private:
         }
     }
 
-    // Park the currently running task as a single external-flag waiter and return
-    // it, or reject a foreign/nested await (returns nullptr). Mirrors wait_on's
-    // awaiting-handle validation. Used by ThreadSafeFlag.
-    Slot* try_park_current(std::coroutine_handle<> awaiting) noexcept {
-        Slot* self = current_;
-        Slot* parked = nullptr;
-        if (self != nullptr && self->state == State::running &&
-            self->handle.address() == awaiting.address()) {
-            self->state = State::waiting_local;
-            parked = self;
-        } else {
+    // True if the awaiting coroutine is the currently running ArduinoAwait task;
+    // otherwise reports invalid_task. Non-mutating, so a caller may check other
+    // preconditions (e.g. single-waiter) before committing to a park.
+    bool running_is(std::coroutine_handle<> awaiting) noexcept {
+        const bool ok = current_ != nullptr && current_->state == State::running &&
+                        current_->handle.address() == awaiting.address();
+        if (!ok) {
             ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
         }
-        return parked;
+        return ok;
+    }
+
+    // Park the currently running task (state -> waiting_local) and return it. The
+    // caller must have already validated it with running_is().
+    Slot* park_running() noexcept {
+        current_->state = State::waiting_local;
+        return current_;
     }
 
     // Move a single parked slot to the ready FIFO (external-signal wake). The ISR

@@ -12,11 +12,18 @@ using namespace arduinoawait;
 Task<void> blink() {
     while (true) {
         digitalWrite(LED_BUILTIN, HIGH);
-        co_await delay(500);
+        co_await delay_ms(500);
         digitalWrite(LED_BUILTIN, LOW);
-        co_await delay(500);
+        co_await delay_ms(500);
     }
 }
+
+void setup() {
+    pinMode(LED_BUILTIN, OUTPUT);
+    spawn(blink());
+}
+
+void loop() { poll(); }
 ```
 
 instead of hand-written `millis()` state machines. It is conceptually a

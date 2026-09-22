@@ -180,8 +180,26 @@ add_test(NAME neg_flag_generic_unsupported_rejected
         "-DAA_CONFIG=$<CONFIG>"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
 
-# Optimized no-return regression (M9 review): the no-value await_resume path must
-# spin (a guaranteed C++20 forward-progress operation) rather than fall through to
+# Persistent negative-compile regression: with diagnostics at the default (disabled)
+# the Stats/stats() surface -- and, under the same guard, the scheduler peak-task
+# counter member and update path -- must be absent, so the opt-in feature is truly
+# zero-cost in a default build (M10 H1).
+add_executable(neg_diagnostics_disabled EXCLUDE_FROM_ALL neg_diagnostics_disabled.cpp)
+target_link_libraries(neg_diagnostics_disabled PRIVATE arduinoawait::arduinoawait)
+set_target_properties(neg_diagnostics_disabled PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF)
+add_test(NAME neg_diagnostics_disabled_rejected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DAA_CMAKE=${CMAKE_COMMAND}"
+        "-DAA_BUILD_DIR=${CMAKE_BINARY_DIR}"
+        "-DAA_TARGET=neg_diagnostics_disabled"
+        "-DAA_DIAGNOSTIC=stats"
+        "-DAA_CONFIG=$<CONFIG>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
+
+# Optimized no-return regression (M9 review): the no-value await_resume path must# spin (a guaranteed C++20 forward-progress operation) rather than fall through to
 # move a never-constructed object, even at -O2 with a RETURNING error hook. Built at
 # -O2 on GCC/Clang (which apply the [intro.progress] rule the reviewer reproduced;
 # MSVC /O2 conflicts with the harness debug /RTC1). The wrapper requires the process

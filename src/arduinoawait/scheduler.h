@@ -286,9 +286,11 @@ private:
             slot->parent = nullptr; // create_task/spawn tasks have no awaiting parent
             ready_push(slot);
             ++active_count_;
+#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
             if (active_count_ > peak_count_) {
                 peak_count_ = active_count_;
             }
+#endif
             result = TaskHandle{this, TaskId{index_of(slot), slot->generation}};
         }
         return result; // reachable via the shutdown/success paths; no code after a hook
@@ -424,9 +426,11 @@ private:
             slot->parent = parent;
             ready_push(slot);
             ++active_count_;
+#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
             if (active_count_ > peak_count_) {
                 peak_count_ = active_count_;
             }
+#endif
             parent->state = State::waiting_child;
         }
         return suspend;
@@ -530,7 +534,9 @@ private:
     Slot* ready_tail_ = nullptr;
     size_t ready_count_ = 0;
     size_t active_count_ = 0;
+#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
     size_t peak_count_ = 0; // high-water mark of active_count_ (diagnostics, §14)
+#endif
     Slot* current_ = nullptr;
     bool in_poll_ = false;
     bool shutting_down_ = false;

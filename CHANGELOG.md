@@ -22,9 +22,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   `ARDUINOAWAIT_ENABLE_DIAGNOSTICS=1` (a default build adds no code or data). It
   returns an allocation-free snapshot of the scheduler counters (active, peak, ready,
   waiting-timer task counts) and the coroutine-frame pool (bytes used, peak, free,
-  and allocation failures). The scheduler tracks the active-task high-water mark and
-  friends a `detail::scheduler_counters()` seam, so the frozen §7 public Scheduler
-  surface is unchanged.
+  and allocation failures). Under the same `ARDUINOAWAIT_ENABLE_DIAGNOSTICS` guard the
+  scheduler compiles in an active-task high-water mark and a `detail::scheduler_counters()`
+  friend seam; a default (diagnostics-off) build carries neither the counter state nor
+  its update path, and the frozen §7 public Scheduler surface is unchanged.
 - Golden example `examples/08_WaitUntil` (a worker `co_await waitUntil`s a threshold
   while a heartbeat keeps running); compiles for RP2040 and RP2350 (Arm and RISC-V),
   added to the CI matrix.

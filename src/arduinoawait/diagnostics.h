@@ -3,11 +3,11 @@
 // ArduinoAwait — diagnostics (V1_API_CONTRACT §14).
 //
 // Compiled ONLY when ARDUINOAWAIT_ENABLE_DIAGNOSTICS is set to 1. In a default
-// build this header expands to nothing, so the diagnostics surface adds no code and
-// no data. When enabled, `stats()` returns an allocation-free snapshot of the
-// scheduler and coroutine-frame-pool counters. The underlying high-water marks
-// (peak tasks, peak frame bytes) are always tracked at negligible, deterministic
-// cost; only the accessor is gated.
+// build this header expands to nothing AND the scheduler compiles in no counter
+// state or update path (the active-task high-water mark and this whole surface are
+// under the same guard), so the diagnostics feature adds no code and no data. When
+// enabled, `stats()` returns an allocation-free snapshot of the scheduler and
+// coroutine-frame-pool counters.
 
 #include "config.h"
 

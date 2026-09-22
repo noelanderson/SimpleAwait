@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 #define SIMPLEAWAIT_ENABLE_DIAGNOSTICS 1
 namespace {
@@ -167,25 +168,74 @@ int main() {
     drainAndCheckIdle();
 
     // ---- allocator fragmentation / recovery: must exercise coalescing ----
-    // Park mixed-size frames until only a thin tail of the pool is free, then
-    // release them so their adjacent blocks must coalesce, then place a frame
-    // larger than the leftover tail AND larger than any single freed block. Only
-    // a coalescing deallocate can satisfy it: with coalescing removed the request
+    // Coroutine-frame size is compiler/ABI/optimization-level specific (verified:
+    // this scenario's old hardcoded byte thresholds passed on MSVC and Windows
+    // Clang but spuriously tripped frame_pool_exhausted on Linux Clang in CI), so
+    // measure this build's actual frame sizes instead of assuming byte counts.
+    // Park mixed-size frames until only a thin tail smaller than the large frame
+    // is free, release them so their adjacent blocks must coalesce, then place a
+    // frame larger than the tail AND larger than any single freed block. Only a
+    // coalescing deallocate can satisfy it: with coalescing removed the request
     // hits the deterministic frame_pool_exhausted hook (recorded above and caught
     // by drainAndCheckIdle). This is unlike same-size, same-order churn, which
     // first-fit reuses hole-for-hole and cannot detect a broken coalesce.
+    //
+    // Blockers are sized large (400/700 payload) relative to the pool so only a
+    // handful are ever needed, regardless of per-compiler/ABI coroutine-frame
+    // overhead. A prior version used tiny (96/192) blockers and, on Linux Clang,
+    // apparently needed more of them than SIMPLEAWAIT_MAX_TASKS (32) allows,
+    // spuriously hitting task_limit instead of ever exercising the allocator.
+    size_t blockerFrameSize = 0;
+    {
+        // The pool is empty here (every prior scenario drained to
+        // frameBytesUsed == 0), so this is exactly one blocker frame's size. A
+        // Task's frame is allocated the moment the coroutine function is called
+        // (lazy only means the body hasn't run yet), so the size is already
+        // reflected in frameBytesUsed before spawn()/poll() ever touch it.
+        Event probeEvt;
+        Task<void> probe = holdSized<700>(&probeEvt);
+        blockerFrameSize = stats().frameBytesUsed;
+        spawn(std::move(probe));
+        probeEvt.set();
+        int g = 0;
+        while (sch.activeTaskCount() > 0 && g++ < 100) {
+            poll();
+        }
+    }
+    size_t bigFrameSize = 0;
+    {
+        Task<void> probe = sized<2048>();
+        bigFrameSize = stats().frameBytesUsed;
+        spawn(std::move(probe));
+        int g = 0;
+        while (sch.activeTaskCount() > 0 && g++ < 100) {
+            poll();
+        }
+    }
+    // The large frame must dominate a single blocker frame; otherwise a lone
+    // freed blocker block could satisfy it without any coalescing at all.
+    SA_CHECK(bigFrameSize > blockerFrameSize);
+    const size_t tailThreshold = bigFrameSize - 1;
+
     for (int r = 0; r < 100; ++r) {
         Event hold;
         int parked = 0;
-        while (stats().frameBytesFree > 1500 && parked < 64) {
+        // Capped well under SIMPLEAWAIT_MAX_TASKS (32 by default): with 400/700
+        // payload blockers against a 4096-byte pool this needs only a handful of
+        // iterations even under generous per-frame overhead.
+        while (stats().frameBytesFree > tailThreshold && parked < 20) {
             if (parked & 1) {
-                spawn(holdSized<192>(&hold));
+                spawn(holdSized<700>(&hold));
             } else {
-                spawn(holdSized<96>(&hold));
+                spawn(holdSized<400>(&hold));
             }
             poll(); // create and park the newly spawned blocker
             ++parked;
         }
+        // The cap above must never be why the loop stopped -- if it is, the
+        // pool/threshold/blocker-size relationship has drifted and the scenario
+        // would silently stop exercising coalescing at all.
+        SA_CHECK(stats().frameBytesFree <= tailThreshold);
         hold.set(); // release every blocker so their adjacent blocks coalesce
         int guard = 0;
         while (sch.activeTaskCount() > 0 && guard++ < 4000) {

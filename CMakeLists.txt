@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(SimpleAwait
-    VERSION 0.1.0
+    VERSION 1.0.0
     DESCRIPTION "Deterministic fixed-memory cooperative coroutine library for Arduino"
     LANGUAGES CXX)
 

@@ -168,17 +168,14 @@ The normative specification lives under [`docs/simpleawait/`](docs/simpleawait/)
 
 ## Packaging and publication notes
 
-The MIT license, the `SimpleAwait contributors` copyright holder, and the
-repository URL in the packaging metadata are initial defaults; update them to
-match the project's chosen license and canonical repository when published.
+The packaging metadata (`library.properties`, `library.json`) declares
+`SimpleAwait` version `1.0.0`, authored and maintained by **Noel Anderson**,
+under the [MIT](LICENSE) license. Update the `url` / `repository` fields if the
+canonical repository differs from the default.
 
-The library name **intentionally** starts with "Arduino". Arduino Lint reports
-this as rule `LP012` ("name starts with Arduino", reserved for official
-libraries) at every compliance level. This is a fixed part of the public
-identity (`SimpleAwait.h`, namespace `simpleawait`) and only affects a future
-Arduino Library Manager submission decision. The CI metadata check validates the
-metadata and tolerates only this one documented deviation; it does not enable
-arduino-lint "official" mode.
+The library passes Arduino Lint against the library specification: the CI
+metadata check runs `arduino-lint --compliance specification` and fails closed
+on any error-level rule, so metadata regressions break the build.
 
 ## License
 

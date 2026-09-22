@@ -11,8 +11,17 @@
 #include <cstdint>
 
 #define SIMPLEAWAIT_ENABLE_DIAGNOSTICS 1
-namespace { unsigned long long g_now = 0; }
+namespace {
+unsigned long long g_now = 0;
+int g_last_error = -1;
+}
 #define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
+// Non-halting recording hook: the allocator-fragmentation scenario relies on a
+// frame-pool exhaustion (raised only if a broken coalescing deallocate fails to
+// recover a large frame) being observable as a clean assertion rather than an
+// abort. No passing scenario ever triggers it, and drainAndCheckIdle asserts it
+// stayed clear.
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
 
 #include <SimpleAwait.h>
 
@@ -42,6 +51,7 @@ void drainAndCheckIdle() {
     SA_CHECK(s.activeTasks == 0);
     SA_CHECK(s.frameBytesUsed == 0);
     SA_CHECK(s.allocationFailures == 0);
+    SA_CHECK(g_last_error == -1);
 }
 
 int g_counter = 0;
@@ -65,6 +75,15 @@ Task<void> sized() {
     buf[0] = static_cast<char>(N);
     (void)buf[0];
     co_await simpleawait::yield();
+}
+
+// A frame that stays parked (holding its pool block) until *ev* is set.
+template <size_t N>
+Task<void> holdSized(Event* ev) {
+    volatile char buf[N];
+    buf[0] = static_cast<char>(N);
+    (void)buf[0];
+    co_await ev->wait();
 }
 
 Task<void> napper(uint64_t us) {
@@ -147,14 +166,34 @@ int main() {
     }
     drainAndCheckIdle();
 
-    // ---- allocator fragmentation / recovery (mixed frame sizes, out-of-order) ----
-    for (int r = 0; r < 800; ++r) {
-        spawn(sized<24>());
-        spawn(sized<200>());
-        spawn(sized<64>());
-        spawn(sized<120>());
+    // ---- allocator fragmentation / recovery: must exercise coalescing ----
+    // Park mixed-size frames until only a thin tail of the pool is free, then
+    // release them so their adjacent blocks must coalesce, then place a frame
+    // larger than the leftover tail AND larger than any single freed block. Only
+    // a coalescing deallocate can satisfy it: with coalescing removed the request
+    // hits the deterministic frame_pool_exhausted hook (recorded above and caught
+    // by drainAndCheckIdle). This is unlike same-size, same-order churn, which
+    // first-fit reuses hole-for-hole and cannot detect a broken coalesce.
+    for (int r = 0; r < 100; ++r) {
+        Event hold;
+        int parked = 0;
+        while (stats().frameBytesFree > 1500 && parked < 64) {
+            if (parked & 1) {
+                spawn(holdSized<192>(&hold));
+            } else {
+                spawn(holdSized<96>(&hold));
+            }
+            poll(); // create and park the newly spawned blocker
+            ++parked;
+        }
+        hold.set(); // release every blocker so their adjacent blocks coalesce
         int guard = 0;
-        while (sch.activeTaskCount() > 0 && guard++ < 100) {
+        while (sch.activeTaskCount() > 0 && guard++ < 4000) {
+            poll();
+        }
+        spawn(sized<2048>()); // fits only in a coalesced pool
+        guard = 0;
+        while (sch.activeTaskCount() > 0 && guard++ < 4000) {
             poll();
         }
     }

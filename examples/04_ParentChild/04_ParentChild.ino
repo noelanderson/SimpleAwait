@@ -1,4 +1,4 @@
-// ArduinoAwait — 04_ParentChild golden example.
+// SimpleAwait — 04_ParentChild golden example.
 //
 // Sequential child await. A parent Task runs its sub-steps by co_await-ing child
 // Tasks: each `co_await step(n)` runs that child to completion (on a later poll
@@ -7,9 +7,9 @@
 // frames live in the fixed pool. A separate heartbeat task keeps running to show
 // the parent only waits for its own child, not the whole scheduler.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 Task<void> step(int n) {
     Serial.print("  step ");

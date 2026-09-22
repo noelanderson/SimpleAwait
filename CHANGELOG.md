@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to ArduinoAwait are documented in this file.
+All notable changes to SimpleAwait are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -9,7 +9,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M11: V1 hardening
 
-- Stress suite `test/test_m11_stress.cpp` (host, `ARDUINOAWAIT_ENABLE_DIAGNOSTICS=1`,
+- Stress suite `test/test_m11_stress.cpp` (host, `SIMPLEAWAIT_ENABLE_DIAGNOSTICS=1`,
   MSVC + Clang, C++20 and C++23): 100,000+ task completions with heavy slot reuse and
   generation churn; repeated deep child nesting; allocator fragmentation/recovery
   over mixed frame sizes; repeated timer creation/completion; `Event` fan-out (16
@@ -34,7 +34,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M10: waitUntil, diagnostics, and V1 integration
 
-- `arduinoawait::waitUntil(predicate)` (`src/arduinoawait/waituntil.h`) — the frozen
+- `simpleawait::waitUntil(predicate)` (`src/simpleawait/waituntil.h`) — the frozen
   V1 header-defined coroutine composition (V1_API_CONTRACT §12, ARCHITECTURE §18):
   `co_await waitUntil(pred)` suspends at fair `yield()` points until `pred()` returns
   true. It is a pure composition over `yield()` and `Task<void>`, not a scheduler
@@ -42,12 +42,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   is evaluated once per pass in scheduler context so other tasks keep running. A
   library-level `-Wsubobject-linkage` suppression (GCC only) keeps the natural
   lambda-argument usage warning-clean under `-Werror`.
-- `arduinoawait::stats()` and `arduinoawait::Stats` (`src/arduinoawait/diagnostics.h`)
+- `simpleawait::stats()` and `simpleawait::Stats` (`src/simpleawait/diagnostics.h`)
   — the frozen V1 diagnostics snapshot (V1_API_CONTRACT §14), compiled only when
-  `ARDUINOAWAIT_ENABLE_DIAGNOSTICS=1` (a default build adds no code or data). It
+  `SIMPLEAWAIT_ENABLE_DIAGNOSTICS=1` (a default build adds no code or data). It
   returns an allocation-free snapshot of the scheduler counters (active, peak, ready,
   waiting-timer task counts) and the coroutine-frame pool (bytes used, peak, free,
-  and allocation failures). Under the same `ARDUINOAWAIT_ENABLE_DIAGNOSTICS` guard the
+  and allocation failures). Under the same `SIMPLEAWAIT_ENABLE_DIAGNOSTICS` guard the
   scheduler compiles in an active-task high-water mark and a `detail::scheduler_counters()`
   friend seam; a default (diagnostics-off) build carries neither the counter state nor
   its update path, and the frozen §7 public Scheduler surface is unchanged.
@@ -63,11 +63,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - V1 integration: `README.md` now documents the core primitives, the never-block
   cooperative model, and the scheduler-local vs external/ISR (`ThreadSafeFlag`)
   distinction; `library.properties` describes the implemented V1 surface. The umbrella
-  `<ArduinoAwait.h>` include path is unchanged.
+  `<SimpleAwait.h>` include path is unchanged.
 
 ### Added — M9: Queue<T, Capacity>
 
-- `arduinoawait::Queue<T, Capacity>` (`src/arduinoawait/queue.h`) — the frozen V1
+- `simpleawait::Queue<T, Capacity>` (`src/simpleawait/queue.h`) — the frozen V1
   bounded, scheduler-local FIFO with blocking `send`/`receive` (V1_API_CONTRACT §11,
   ARCHITECTURE §17). `co_await q.send(v)` completes immediately when a receiver is
   waiting (direct hand-off) or capacity exists, else the sender suspends in FIFO
@@ -116,7 +116,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M8: ThreadSafeFlag and external/IRQ signaling
 
-- `arduinoawait::ThreadSafeFlag` (`src/arduinoawait/threadsafeflag.h`) — the frozen
+- `simpleawait::ThreadSafeFlag` (`src/simpleawait/threadsafeflag.h`) — the frozen
   V1 single-waiter, auto-reset, coalescing external-context signal bridge
   (V1_API_CONTRACT §10, ARCHITECTURE §16). `set()` is the only method callable from
   a supported external/IRQ/callback/other-core context: under a short platform
@@ -131,7 +131,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   awaiting coroutine is not the running task) is rejected with `invalid_task`
   rather than stranded; destroying a flag with a parked waiter raises
   `object_destroyed_with_waiters` (and unarms it first for safety).
-- `detail::CriticalSection` (`src/arduinoawait/detail/platform_sync.h`) — the
+- `detail::CriticalSection` (`src/simpleawait/detail/platform_sync.h`) — the
   platform short critical section that owns cross-context ordering (do not assume
   `std::atomic` is ISR-safe on every target). Backends: RP2040/RP2350
   `save_and_disable_interrupts()`/`restore_interrupts()` — STATE-PRESERVING, so it
@@ -141,9 +141,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   Arduino target (no first-class core, no override) is UNSUPPORTED: there is no
   portable way to restore the prior interrupt state, and the scheduler's external-
   signal poll step (`detail::poll_external_signals`, run by `poll()` every pass)
-  needs a usable critical section, so the umbrella `<ArduinoAwait.h>` fails to
+  needs a usable critical section, so the umbrella `<SimpleAwait.h>` fails to
   compile with a `#error` directing the user to the
-  `ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE` or a first-class target. The
+  `SIMPLEAWAIT_CRITICAL_SECTION_OVERRIDE` or a first-class target. The
   scheduler gains a `detail::poll_external_signals()` step-4 hook and private
   `running_is()`/`park_running()`/`wake_slot()` helpers; `ThreadSafeFlag` is a friend
   of `Scheduler`, so the frozen §7 surface is unchanged.
@@ -172,7 +172,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M7: WaitQueue and Event
 
-- `arduinoawait::Event` (`src/arduinoawait/event.h`) — the frozen V1 scheduler-
+- `simpleawait::Event` (`src/simpleawait/event.h`) — the frozen V1 scheduler-
   local, manual-reset, multi-waiter synchronization primitive (V1_API_CONTRACT
   §9). `co_await ev.wait()` on a clear Event suspends the task; `set()` latches the
   Event and wakes all current waiters in FIFO order (they run on a LATER poll
@@ -182,7 +182,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   scheduler-context only; external contexts use ThreadSafeFlag, a later
   milestone). Destroying an Event that still has parked waiters invokes the
   deterministic hook with `Error::object_destroyed_with_waiters`.
-- The scheduler (`src/arduinoawait/scheduler.h`) gains an intrusive FIFO
+- The scheduler (`src/simpleawait/scheduler.h`) gains an intrusive FIFO
   `WaitQueue` (ARCHITECTURE §14, a private nested type holding task slots via the
   shared `next` link — no heap, no separate nodes) and a `waiting_local` task
   state, plus `wait_on()`/`wake_all()`. `Event` is a friend of `Scheduler` and
@@ -204,14 +204,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M6: Parent/child await
 
-- `Task<void>::operator co_await() && noexcept` (`src/arduinoawait/task.h`) — the
+- `Task<void>::operator co_await() && noexcept` (`src/simpleawait/task.h`) — the
   frozen V1 sequential child await (V1_API_CONTRACT §4). `co_await someTask()` runs
   the child Task to completion as a child of the awaiting task. Awaiting consumes
   the Task (rvalue-qualified): it transfers the child's coroutine frame into the
   scheduler and empties the Task, so a second await of the now-empty Task fails
   deterministically via the error hook (`Error::task_awaited_twice`) without
   suspending or hanging.
-- The scheduler (`src/arduinoawait/scheduler.h`) gains a `waiting_child` state and
+- The scheduler (`src/simpleawait/scheduler.h`) gains a `waiting_child` state and
   a per-slot `parent` link (no heap; the child reuses the fixed slot pool via the
   same `acquire_slot`/frame ownership as `create_task`). `detail::start_child()`
   transfers the child frame into a slot linked to the running parent and moves the
@@ -237,15 +237,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M5: yield(), delay(), and timer waits
 
-- `arduinoawait::yield()` (`YieldAwaitable`) and `arduinoawait::delay(uint32_t ms)`
+- `simpleawait::yield()` (`YieldAwaitable`) and `simpleawait::delay(uint32_t ms)`
   / `delay_ms(uint32_t ms)` / `delay_us(uint64_t us)` (`DelayAwaitable`) in
-  `src/arduinoawait/delay.h` — the frozen V1 timing awaitables (V1_API_CONTRACT
+  `src/simpleawait/delay.h` — the frozen V1 timing awaitables (V1_API_CONTRACT
   §8). `co_await yield()` and `co_await delay(0)`/`delay_ms(0)`/`delay_us(0)` are
   fair yield points: they always suspend and requeue for a LATER `poll()` pass
   (zero duration is never an immediate `await_ready()` success), so a continuously
   yielding task cannot starve another ready task. A positive delay suspends until
   the 64-bit monotonic microsecond clock reaches `now + duration`.
-- The scheduler (`src/arduinoawait/scheduler.h`) gains a fixed per-slot timer
+- The scheduler (`src/simpleawait/scheduler.h`) gains a fixed per-slot timer
   wait: a `waiting_timer` state plus an absolute `deadline_us`, with no separate
   timer nodes or heap. `poll()` now performs ARCHITECTURE §9 step 5 — after
   sampling the clock it moves every due timer to the ready FIFO (deterministic
@@ -270,15 +270,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   real delay intervals against the native clock. All compile for RP2040 and RP2350
   (Arm and RISC-V).
 - Docs: V1_API_CONTRACT §8 gains a usage note that Arduino's global `::yield()` /
-  `::delay()` collide under `using namespace arduinoawait;`, so qualify
-  `arduinoawait::yield()` and prefer `delay_ms()`/`delay_us()` (signatures
+  `::delay()` collide under `using namespace simpleawait;`, so qualify
+  `simpleawait::yield()` and prefer `delay_ms()`/`delay_us()` (signatures
   unchanged).
 
 ### Added — M4: Cooperative scheduler, TaskHandle, ready FIFO
 
-- `arduinoawait::Scheduler` (`src/arduinoawait/scheduler.h`): a fixed-memory
+- `simpleawait::Scheduler` (`src/simpleawait/scheduler.h`): a fixed-memory
   cooperative scheduler. Task state lives in a fixed array of
-  `ARDUINOAWAIT_MAX_TASKS` slots (no heap, no `std::` containers); the ready queue
+  `SIMPLEAWAIT_MAX_TASKS` slots (no heap, no `std::` containers); the ready queue
   is an intrusive FIFO threaded through the slots. `poll()` runs one bounded pass
   with frozen V1 semantics (ARCHITECTURE §9): it samples the 64-bit clock, then
   snapshots the ready count as the pass budget and resumes each of those tasks at
@@ -311,7 +311,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   each slot before destroying its frame — a reentrant destructor cannot resume a
   frame being destroyed or double-free it. Generation counters retire a slot at
   `UINT32_MAX` instead of wrapping, so a rolled-over generation can never resurrect
-  an earlier handle. A compile-time check rejects `ARDUINOAWAIT_MAX_TASKS` beyond
+  an earlier handle. A compile-time check rejects `SIMPLEAWAIT_MAX_TASKS` beyond
   the representable `TaskSlot` range.
 - Host tests: `test_m4_scheduler` (explicit scheduling and lazy bodies, detached
   `spawn`, FIFO run order, the bounded pass budget — a task created mid-pass runs
@@ -334,7 +334,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M3: Lazy Task<void> and ownership
 
-- `arduinoawait::Task<void>` (`src/arduinoawait/task.h`): a lazy, move-only
+- `simpleawait::Task<void>` (`src/simpleawait/task.h`): a lazy, move-only
   coroutine handle. Calling a Task-returning coroutine allocates the frame from
   the fixed pool and suspends at `initial_suspend` — the body does not run until
   the Task is scheduled/awaited (later milestones). Ownership is a single token:
@@ -345,7 +345,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   error (`static_assert`).
 - The `Task<void>` promise's `operator new`/`operator delete` (plain, `nothrow`,
   and sized) route through the process-wide frame pool
-  (`detail::frame_pool()`, `src/arduinoawait/detail/global_frame_pool.h`), so no
+  (`detail::frame_pool()`, `src/simpleawait/detail/global_frame_pool.h`), so no
   coroutine frame ever touches the global heap. On exhaustion the deterministic
   hook is invoked with `Error::frame_pool_exhausted`; with a non-halting override
   the coroutine returns the empty Task via `get_return_object_on_allocation_failure`
@@ -361,7 +361,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M2: Fixed coroutine frame allocator
 
-- `detail::FramePool<Bytes>` (`src/arduinoawait/detail/frame_pool.h`): a fixed
+- `detail::FramePool<Bytes>` (`src/simpleawait/detail/frame_pool.h`): a fixed
   byte arena that hands out variable-size, aligned blocks for coroutine frames
   with no global heap fallback. It is a coalescing first-fit free list —
   arbitrary free order, adjacent free blocks merge, and full capacity is
@@ -391,20 +391,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M1: Platform clock abstraction
 
-- Deterministic `arduinoawait::Error` enum (frozen V1 surface) in
-  `src/arduinoawait/error.h`.
+- Deterministic `simpleawait::Error` enum (frozen V1 surface) in
+  `src/simpleawait/error.h`.
 - 64-bit monotonic microsecond platform clock `detail::platform_now_us()`
-  (`src/arduinoawait/detail/platform_clock.h`) with compile-time backend
+  (`src/simpleawait/detail/platform_clock.h`) with compile-time backend
   selection verified against the real cores: `time_us_64()` on RP2040/RP2350
   (Arm and RISC-V, selected by `ARDUINO_ARCH_RP2040`), `esp_timer_get_time()` on
   ESP32 (`ARDUINO_ARCH_ESP32`), a software-extended 32-bit `micros()` secondary
-  backend for generic Arduino, and an injectable `ARDUINOAWAIT_CLOCK_NOW_US`
+  backend for generic Arduino, and an injectable `SIMPLEAWAIT_CLOCK_NOW_US`
   override for tests. There is no silent host default: a host build must inject a
-  clock (or opt into a `steady_clock` adapter via `ARDUINOAWAIT_HOST_REALTIME_CLOCK`),
+  clock (or opt into a `steady_clock` adapter via `SIMPLEAWAIT_HOST_REALTIME_CLOCK`),
   so a test that forgets injection gets a link error rather than nondeterministic
   real time. All scheduler timing flows through this one function; no other
   source calls a platform clock primitive directly.
-- Deadline arithmetic (`src/arduinoawait/detail/time_math.h`): `ms_to_us`
+- Deadline arithmetic (`src/simpleawait/detail/time_math.h`): `ms_to_us`
   widening, an `add_overflows` predicate, and `compute_deadline(now, dur, out&)`,
   which returns a `bool` success indicator (never conflating a valid maximum
   deadline with failure), writes the deadline only on success, and routes a
@@ -422,15 +422,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added — M0: Repository and build skeleton
 
-- Arduino library layout under `src/` with the public include `ArduinoAwait.h`.
-- Configuration header `src/arduinoawait/config.h` exposing the V1 configuration
-  surface (`ARDUINOAWAIT_MAX_TASKS`, `ARDUINOAWAIT_FRAME_POOL_BYTES`,
-  `ARDUINOAWAIT_ON_ERROR`, `ARDUINOAWAIT_ENABLE_DIAGNOSTICS`,
-  `ARDUINOAWAIT_ENABLE_ISR`) with overridable defaults.
+- Arduino library layout under `src/` with the public include `SimpleAwait.h`.
+- Configuration header `src/simpleawait/config.h` exposing the V1 configuration
+  surface (`SIMPLEAWAIT_MAX_TASKS`, `SIMPLEAWAIT_FRAME_POOL_BYTES`,
+  `SIMPLEAWAIT_ON_ERROR`, `SIMPLEAWAIT_ENABLE_DIAGNOSTICS`,
+  `SIMPLEAWAIT_ENABLE_ISR`) with overridable defaults.
 - Compile-time coroutine-support checks in
-  `src/arduinoawait/detail/coroutine_support.h` (fails clearly without C++20
+  `src/simpleawait/detail/coroutine_support.h` (fails clearly without C++20
   standard coroutines; does not rely on `__cplusplus`).
-- Library version header `src/arduinoawait/version.h`.
+- Library version header `src/simpleawait/version.h`.
 - Arduino metadata (`library.properties`) and PlatformIO metadata
   (`library.json`).
 - Host CMake test target (`CMakeLists.txt`, `test/`) with deterministic host
@@ -445,7 +445,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Hardened after independent milestone review
 
-- The default embedded halt (`arduinoawait::detail::halt`) now performs a
+- The default embedded halt (`simpleawait::detail::halt`) now performs a
   per-iteration `volatile` access so the deterministic halt loop is preserved
   under the C++20 forward-progress rules ([intro.progress]) at every
   optimization level, without relying on the later P2809 fix.
@@ -472,4 +472,4 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 No coroutine scheduling is implemented at M0.
 
-[Unreleased]: https://github.com/ArduinoAwait/ArduinoAwait
+[Unreleased]: https://github.com/SimpleAwait/SimpleAwait

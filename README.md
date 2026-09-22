@@ -1,13 +1,13 @@
-# ArduinoAwait
+# SimpleAwait
 
 A small, deterministic, fixed-memory cooperative coroutine library for Arduino,
 built on native standard **C++20 coroutines**.
 
-ArduinoAwait lets you write embedded control flow as ordinary sequential code:
+SimpleAwait lets you write embedded control flow as ordinary sequential code:
 
 ```cpp
-#include <ArduinoAwait.h>
-using namespace arduinoawait;
+#include <SimpleAwait.h>
+using namespace simpleawait;
 
 Task<void> blink() {
     while (true) {
@@ -66,8 +66,8 @@ Every application drives the scheduler by calling `poll()` from `loop()`; each
 ready during a pass runs on the next one).
 
 ```cpp
-#include <ArduinoAwait.h>
-using namespace arduinoawait;
+#include <SimpleAwait.h>
+using namespace simpleawait;
 
 void setup() { spawn(blink()); }
 void loop()  { poll(); }
@@ -89,7 +89,7 @@ void loop()  { poll(); }
 - **`ThreadSafeFlag`** — the single-waiter bridge from an ISR/other-core context:
   `flag.set()` is the only method safe to call from there, and it never runs
   coroutine code; a task `co_await flag.wait()`s for it.
-- **Diagnostics.** With `ARDUINOAWAIT_ENABLE_DIAGNOSTICS=1`, `stats()` returns an
+- **Diagnostics.** With `SIMPLEAWAIT_ENABLE_DIAGNOSTICS=1`, `stats()` returns an
   allocation-free snapshot (active/peak/ready/waiting-timer task counts and
   frame-pool bytes used/peak/free plus allocation failures).
 
@@ -109,20 +109,20 @@ from an interrupt. The only primitive whose `set()` is safe from an ISR, a
 hardware callback, or another core is `ThreadSafeFlag`; it merely marks a pending
 signal that the next `poll()` resolves, so no coroutine ever executes in ISR
 context. On generic Arduino cores without a first-class backend, that ISR-safe
-critical section is unavailable, so `<ArduinoAwait.h>` requires
-`ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE` there (RP2040/RP2350/ESP32 need nothing).
+critical section is unavailable, so `<SimpleAwait.h>` requires
+`SIMPLEAWAIT_CRITICAL_SECTION_OVERRIDE` there (RP2040/RP2350/ESP32 need nothing).
 
 ## Configuration
 
-Define any of these before including `<ArduinoAwait.h>` (defaults shown):
+Define any of these before including `<SimpleAwait.h>` (defaults shown):
 
 | Macro | Default | Purpose |
 |---|---|---|
-| `ARDUINOAWAIT_MAX_TASKS` | `32` | Maximum concurrently scheduled tasks |
-| `ARDUINOAWAIT_FRAME_POOL_BYTES` | `4096` | Coroutine frame pool size (bytes) |
-| `ARDUINOAWAIT_ON_ERROR(error)` | halt/abort | Deterministic error hook |
-| `ARDUINOAWAIT_ENABLE_DIAGNOSTICS` | `0` | Compile in diagnostic counters |
-| `ARDUINOAWAIT_ENABLE_ISR` | `0` | Compile in external/ISR signaling |
+| `SIMPLEAWAIT_MAX_TASKS` | `32` | Maximum concurrently scheduled tasks |
+| `SIMPLEAWAIT_FRAME_POOL_BYTES` | `4096` | Coroutine frame pool size (bytes) |
+| `SIMPLEAWAIT_ON_ERROR(error)` | halt/abort | Deterministic error hook |
+| `SIMPLEAWAIT_ENABLE_DIAGNOSTICS` | `0` | Compile in diagnostic counters |
+| `SIMPLEAWAIT_ENABLE_ISR` | `0` | Compile in external/ISR signaling |
 
 ## Building and testing (host)
 
@@ -136,7 +136,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 Tests are compiled at C++20 and, where the toolchain supports it, also at C++23.
-Pass `-DARDUINOAWAIT_ENABLE_SANITIZERS=ON` (GCC/Clang) to build the host tests
+Pass `-DSIMPLEAWAIT_ENABLE_SANITIZERS=ON` (GCC/Clang) to build the host tests
 with AddressSanitizer and UndefinedBehaviorSanitizer.
 
 ## Compiling an example (Arduino)
@@ -159,23 +159,23 @@ arduino-cli compile --fqbn esp32:esp32:esp32s3 --library . examples/Empty
 
 ## Documentation
 
-The normative specification lives under [`docs/arduinoawait/`](docs/arduinoawait/):
+The normative specification lives under [`docs/simpleawait/`](docs/simpleawait/):
 
-- [`V1_API_CONTRACT.md`](docs/arduinoawait/V1_API_CONTRACT.md) — frozen public API
-- [`ARCHITECTURE.md`](docs/arduinoawait/ARCHITECTURE.md) — normative design
-- [`ArduinoAwait_Implementation_Spec.md`](docs/arduinoawait/ArduinoAwait_Implementation_Spec.md)
-- [`IMPLEMENTATION_PLAN.md`](docs/arduinoawait/IMPLEMENTATION_PLAN.md) — milestones
+- [`V1_API_CONTRACT.md`](docs/simpleawait/V1_API_CONTRACT.md) — frozen public API
+- [`ARCHITECTURE.md`](docs/simpleawait/ARCHITECTURE.md) — normative design
+- [`SimpleAwait_Implementation_Spec.md`](docs/simpleawait/SimpleAwait_Implementation_Spec.md)
+- [`IMPLEMENTATION_PLAN.md`](docs/simpleawait/IMPLEMENTATION_PLAN.md) — milestones
 
 ## Packaging and publication notes
 
-The MIT license, the `ArduinoAwait contributors` copyright holder, and the
+The MIT license, the `SimpleAwait contributors` copyright holder, and the
 repository URL in the packaging metadata are initial defaults; update them to
 match the project's chosen license and canonical repository when published.
 
 The library name **intentionally** starts with "Arduino". Arduino Lint reports
 this as rule `LP012` ("name starts with Arduino", reserved for official
 libraries) at every compliance level. This is a fixed part of the public
-identity (`ArduinoAwait.h`, namespace `arduinoawait`) and only affects a future
+identity (`SimpleAwait.h`, namespace `simpleawait`) and only affects a future
 Arduino Library Manager submission decision. The CI metadata check validates the
 metadata and tolerates only this one documented deviation; it does not enable
 arduino-lint "official" mode.

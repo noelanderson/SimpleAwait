@@ -1,8 +1,8 @@
-# ArduinoAwait repository instructions
+# SimpleAwait repository instructions
 
 Before making code changes, read and follow `/AGENTS.md`.
 
-`/AGENTS.md` is the top-level operating contract and points to the normative ArduinoAwait documents under `/docs/arduinoawait/`.
+`/AGENTS.md` is the top-level operating contract and points to the normative SimpleAwait documents under `/docs/simpleawait/`.
 
 For substantial implementation work, use:
 - `/.github/prompts/PRIMARY_AGENT_PROMPT.md`

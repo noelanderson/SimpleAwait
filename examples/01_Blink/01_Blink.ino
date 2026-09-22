@@ -1,4 +1,4 @@
-// ArduinoAwait — 01_Blink golden example.
+// SimpleAwait — 01_Blink golden example.
 //
 // The canonical cooperative blink: a single Task toggles the LED and yields the
 // core back to the scheduler across each interval via co_await delay_ms(). No
@@ -6,9 +6,9 @@
 // lives in the fixed pool. Other tasks (see 02_TwoTasks) can run concurrently in
 // the same loop.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 constexpr int kLedPin = LED_BUILTIN;
 

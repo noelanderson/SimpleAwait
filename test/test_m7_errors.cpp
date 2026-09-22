@@ -9,21 +9,21 @@
 #include <cstdint>
 
 namespace { int g_last_error = -1; unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::create_task;
-using arduinoawait::Error;
-using arduinoawait::Event;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Task;
-using arduinoawait::TaskHandle;
+using simpleawait::create_task;
+using simpleawait::Error;
+using simpleawait::Event;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Task;
+using simpleawait::TaskHandle;
 
 namespace {
 int g_after = 0;
@@ -75,9 +75,9 @@ int main() {
         g_last_error = -1;
         g_foreign_after = 0;
         foreignWaiter(&ev); // runs eagerly; the clear-Event wait is rejected
-        AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
-        AA_CHECK(g_foreign_after == 1); // caller resumed, not stranded
-        AA_CHECK(!ev.isSet());
+        SA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
+        SA_CHECK(g_foreign_after == 1); // caller resumed, not stranded
+        SA_CHECK(!ev.isSet());
         // ev has no waiters (the wait was rejected) -> its destructor raises no error
     }
 
@@ -93,13 +93,13 @@ int main() {
         while (!ho.done() && g++ < 20) {
             poll();
         }
-        AA_CHECK(ho.done());
-        AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
-        AA_CHECK(g_nested_after == 1); // foreign continuation ran (not stranded)
-        AA_CHECK(g_outer_after == 1);  // outer task unaffected, completed normally
+        SA_CHECK(ho.done());
+        SA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
+        SA_CHECK(g_nested_after == 1); // foreign continuation ran (not stranded)
+        SA_CHECK(g_outer_after == 1);  // outer task unaffected, completed normally
         ev.set(); // ev must have no waiters -> this wakes nothing
         poll();
-        AA_CHECK(scheduler().activeTaskCount() == 0); // no stray slot queued on ev
+        SA_CHECK(scheduler().activeTaskCount() == 0); // no stray slot queued on ev
     }
 
     // ---- destroying an Event with active waiters is a deterministic error ----
@@ -109,11 +109,11 @@ int main() {
         Event doomed; // clear
         spawn(parkOn(&doomed));
         poll(); // the task parks on `doomed`
-        AA_CHECK(g_after == 0);
-        AA_CHECK(!doomed.isSet());
+        SA_CHECK(g_after == 0);
+        SA_CHECK(!doomed.isSet());
         // `doomed` is destroyed here WITH a waiter still parked on it
     }
-    AA_CHECK(g_last_error == static_cast<int>(Error::object_destroyed_with_waiters));
+    SA_CHECK(g_last_error == static_cast<int>(Error::object_destroyed_with_waiters));
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

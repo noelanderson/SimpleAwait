@@ -1,6 +1,6 @@
 #pragma once
 
-// ArduinoAwait — cooperative scheduler: fixed task slots, generation-safe
+// SimpleAwait — cooperative scheduler: fixed task slots, generation-safe
 // handles, a FIFO ready queue, and a bounded, reentry-guarded poll() pass.
 //
 // The scheduler owns each scheduled coroutine frame (transferred from the Task).
@@ -21,7 +21,7 @@
 #include "detail/time_math.h"
 #include "task.h"
 
-namespace arduinoawait {
+namespace simpleawait {
 
 using TaskSlot = uint16_t;
 using TaskGeneration = uint32_t;
@@ -79,7 +79,7 @@ void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration gener
 // external signal is pending.
 void poll_external_signals() noexcept;
 
-#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
+#if SIMPLEAWAIT_ENABLE_DIAGNOSTICS
 // Diagnostics seam (V1_API_CONTRACT §14): scheduler-side counters. Defined in
 // diagnostics.h and friended by Scheduler so stats() can read the private counts
 // without widening the frozen §7 public Scheduler surface.
@@ -138,7 +138,7 @@ public:
             return; // teardown in progress: never run a pass
         }
         if (in_poll_) {
-            ARDUINOAWAIT_ON_ERROR(Error::scheduler_reentry);
+            SIMPLEAWAIT_ON_ERROR(Error::scheduler_reentry);
         } else {
             in_poll_ = true;
             now_ = detail::platform_now_us(); // §9 step 1: sample the 64-bit clock
@@ -166,16 +166,16 @@ private:
     template <class T, size_t Capacity>
     friend class Queue;
     friend void detail::poll_external_signals() noexcept;
-#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
+#if SIMPLEAWAIT_ENABLE_DIAGNOSTICS
     friend detail::SchedulerCounters detail::scheduler_counters() noexcept;
 #endif
 
-    static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;
+    static constexpr size_t kMaxTasks = SIMPLEAWAIT_MAX_TASKS;
 
     // Every slot index (0..kMaxTasks-1) must be representable in TaskSlot, or a
     // handle's identity could be aliased by narrowing in index_of() (M1).
     static_assert(kMaxTasks <= static_cast<size_t>(UINT16_MAX) + 1u,
-                  "ARDUINOAWAIT_MAX_TASKS exceeds the representable TaskSlot range");
+                  "SIMPLEAWAIT_MAX_TASKS exceeds the representable TaskSlot range");
 
     // A slot whose generation reaches this value is retired (never reused) so an
     // incremented generation can never wrap back onto an earlier live handle (H2).
@@ -276,9 +276,9 @@ private:
         if (shutting_down_) {
             // Teardown in progress: refuse silently; the caller retains the Task.
         } else if (!task) {
-            ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+            SIMPLEAWAIT_ON_ERROR(Error::invalid_task);
         } else if (Slot* slot = acquire_slot(); slot == nullptr) {
-            ARDUINOAWAIT_ON_ERROR(Error::task_limit);
+            SIMPLEAWAIT_ON_ERROR(Error::task_limit);
         } else {
             slot->handle = detail::take_frame(task); // transfer frame ownership
             slot->state = State::ready;
@@ -286,7 +286,7 @@ private:
             slot->parent = nullptr; // create_task/spawn tasks have no awaiting parent
             ready_push(slot);
             ++active_count_;
-#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
+#if SIMPLEAWAIT_ENABLE_DIAGNOSTICS
             if (active_count_ > peak_count_) {
                 peak_count_ = active_count_;
             }
@@ -401,7 +401,7 @@ private:
     // adopted (parent -> waiting_child, child runs on a later pass and enqueues
     // the parent on completion, ARCHITECTURE §19), or no slot was free so the
     // child is released and the parent requeued for a later resume. Returns false
-    // when the awaiting coroutine is NOT the currently running ArduinoAwait task
+    // when the awaiting coroutine is NOT the currently running SimpleAwait task
     // (no running parent, or a foreign/nested coroutine whose handle does not
     // match current_): the child is released and the error reported, and the
     // caller must resume rather than hang (it is never adopted).
@@ -413,12 +413,12 @@ private:
             parent->handle.address() != awaiting.address()) {
             child.destroy(); // the awaiter is not the running task: do not adopt
             suspend = false;
-            ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+            SIMPLEAWAIT_ON_ERROR(Error::invalid_task);
         } else if (Slot* slot = acquire_slot(); slot == nullptr) {
             child.destroy();              // no slot for the child; release its frame
             parent->state = State::ready; // requeue the parent so it is not stuck
             ready_push(parent);
-            ARDUINOAWAIT_ON_ERROR(Error::task_limit);
+            SIMPLEAWAIT_ON_ERROR(Error::task_limit);
         } else {
             slot->handle = child;
             slot->state = State::ready;
@@ -426,7 +426,7 @@ private:
             slot->parent = parent;
             ready_push(slot);
             ++active_count_;
-#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
+#if SIMPLEAWAIT_ENABLE_DIAGNOSTICS
             if (active_count_ > peak_count_) {
                 peak_count_ = active_count_;
             }
@@ -438,7 +438,7 @@ private:
 
     // Park the currently running task on a wait queue (Event, and later Queue).
     // Returns true if the caller must stay suspended (parked); false if the
-    // awaiting coroutine is not the currently running ArduinoAwait task (foreign
+    // awaiting coroutine is not the currently running SimpleAwait task (foreign
     // or nested), in which case the error is reported and the caller resumes
     // rather than hang. Mirrors the child-await parent validation (M6).
     bool wait_on(WaitQueue& q, std::coroutine_handle<> awaiting) noexcept {
@@ -450,7 +450,7 @@ private:
             q.push_back(self);
             suspend = true;
         } else {
-            ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+            SIMPLEAWAIT_ON_ERROR(Error::invalid_task);
         }
         return suspend; // reachable via the success path; no code after a hook
     }
@@ -464,14 +464,14 @@ private:
         }
     }
 
-    // True if the awaiting coroutine is the currently running ArduinoAwait task;
+    // True if the awaiting coroutine is the currently running SimpleAwait task;
     // otherwise reports invalid_task. Non-mutating, so a caller may check other
     // preconditions (e.g. single-waiter) before committing to a park.
     bool running_is(std::coroutine_handle<> awaiting) noexcept {
         const bool ok = current_ != nullptr && current_->state == State::running &&
                         current_->handle.address() == awaiting.address();
         if (!ok) {
-            ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+            SIMPLEAWAIT_ON_ERROR(Error::invalid_task);
         }
         return ok;
     }
@@ -534,7 +534,7 @@ private:
     Slot* ready_tail_ = nullptr;
     size_t ready_count_ = 0;
     size_t active_count_ = 0;
-#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
+#if SIMPLEAWAIT_ENABLE_DIAGNOSTICS
     size_t peak_count_ = 0; // high-water mark of active_count_ (diagnostics, §14)
 #endif
     Slot* current_ = nullptr;
@@ -575,4 +575,4 @@ inline bool start_child(std::coroutine_handle<> child, std::coroutine_handle<> a
 }
 } // namespace detail
 
-} // namespace arduinoawait
+} // namespace simpleawait

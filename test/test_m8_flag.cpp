@@ -22,17 +22,17 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
 
 namespace { unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Task;
-using arduinoawait::ThreadSafeFlag;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Task;
+using simpleawait::ThreadSafeFlag;
 
 namespace {
 int g_phase = 0;
@@ -82,15 +82,15 @@ int main() {
         g_phase = 0;
         spawn(waiter(&flag));
         poll(); // waiter parks on the clear flag
-        AA_CHECK(g_phase == 1);
-        AA_CHECK(!flag.isSet());
+        SA_CHECK(g_phase == 1);
+        SA_CHECK(!flag.isSet());
         flag.set(); // "external" signal
-        AA_CHECK(flag.isSet());
-        AA_CHECK(g_phase == 1); // set() did NOT resume the waiter inline
+        SA_CHECK(flag.isSet());
+        SA_CHECK(g_phase == 1); // set() did NOT resume the waiter inline
         poll(); // §9 step 4 resolves the pending signal -> waiter woken and runs
-        AA_CHECK(g_phase == 2);
-        AA_CHECK(!flag.isSet()); // consumed (auto-reset)
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(g_phase == 2);
+        SA_CHECK(!flag.isSet()); // consumed (auto-reset)
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- set before wait: a pending signal makes wait() complete without suspend ----
@@ -98,12 +98,12 @@ int main() {
         ThreadSafeFlag flag;
         g_phase = 0;
         flag.set();
-        AA_CHECK(flag.isSet());
+        SA_CHECK(flag.isSet());
         spawn(waiter(&flag));
         poll(); // wait() consumes the pending signal; no suspension
-        AA_CHECK(g_phase == 2);
-        AA_CHECK(!flag.isSet());
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(g_phase == 2);
+        SA_CHECK(!flag.isSet());
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- repeated set() coalesces into one signal; a later waiter is not pre-signaled ----
@@ -112,22 +112,22 @@ int main() {
         g_phase = 0;
         spawn(waiter(&flag));
         poll();
-        AA_CHECK(g_phase == 1);
+        SA_CHECK(g_phase == 1);
         flag.set();
         flag.set();
         flag.set(); // three sets coalesce into a single pending signal
         poll();
-        AA_CHECK(g_phase == 2); // exactly one wake
-        AA_CHECK(!flag.isSet());
+        SA_CHECK(g_phase == 2); // exactly one wake
+        SA_CHECK(!flag.isSet());
         // A fresh waiter must not observe a leftover signal.
         g_phase = 0;
         spawn(waiter(&flag));
         poll();
-        AA_CHECK(g_phase == 1); // still waiting: the coalesced signal was consumed once
+        SA_CHECK(g_phase == 1); // still waiting: the coalesced signal was consumed once
         flag.set();
         poll();
-        AA_CHECK(g_phase == 2);
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(g_phase == 2);
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- signal in the await_ready/await_suspend window is not lost ----
@@ -140,12 +140,12 @@ int main() {
         g_inject_flag = &flag;
         spawn(injectWaiter(&flag));
         poll(); // await_ready false -> inject set() -> park (armed AND signaled)
-        AA_CHECK(g_phase == 1);   // parked: the injected set() did NOT resume inline
-        AA_CHECK(flag.isSet());   // signal is pending, held for resolution
+        SA_CHECK(g_phase == 1);   // parked: the injected set() did NOT resume inline
+        SA_CHECK(flag.isSet());   // signal is pending, held for resolution
         poll();                   // §9 step 4 resolves it -> waiter woken
-        AA_CHECK(g_phase == 2);   // woken exactly once; no lost signal
-        AA_CHECK(!flag.isSet());  // consumed (auto-reset)
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(g_phase == 2);   // woken exactly once; no lost signal
+        SA_CHECK(!flag.isSet());  // consumed (auto-reset)
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- armed list wakes exactly the signaled flags (head/middle/tail removal) ----
@@ -159,21 +159,21 @@ int main() {
         spawn(countWaiter(&f2, &c2));
         spawn(countWaiter(&f3, &c3));
         poll(); // all three park
-        AA_CHECK(c1 == 0 && c2 == 0 && c3 == 0);
+        SA_CHECK(c1 == 0 && c2 == 0 && c3 == 0);
         f2.set(); // signal the MIDDLE armed flag only
         poll();
-        AA_CHECK(c1 == 0 && c2 == 1 && c3 == 0); // only f2's waiter woke
-        AA_CHECK(!f2.isSet());
+        SA_CHECK(c1 == 0 && c2 == 1 && c3 == 0); // only f2's waiter woke
+        SA_CHECK(!f2.isSet());
         f1.set(); // head of the remaining list
         f3.set(); // tail of the remaining list
         poll();
-        AA_CHECK(c1 == 1 && c2 == 1 && c3 == 1); // all resolved
-        AA_CHECK(!f1.isSet() && !f3.isSet());
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(c1 == 1 && c2 == 1 && c3 == 1); // all resolved
+        SA_CHECK(!f1.isSet() && !f3.isSet());
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // The flag path allocated nothing on the global heap.
-    AA_CHECK(g_new_calls == newAtStart);
+    SA_CHECK(g_new_calls == newAtStart);
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

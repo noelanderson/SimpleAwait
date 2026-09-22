@@ -11,16 +11,16 @@
 // regression reintroducing the dangling link aborts during static teardown.
 
 namespace { unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::poll;
-using arduinoawait::Queue;
-using arduinoawait::spawn;
-using arduinoawait::Task;
+using simpleawait::poll;
+using simpleawait::Queue;
+using simpleawait::spawn;
+using simpleawait::Task;
 
 namespace {
 // Namespace-scope queues: constructed at static init, BEFORE the scheduler
@@ -41,7 +41,7 @@ int main() {
     // main() returns with both queues still holding a parked waiter. At static
     // teardown the scheduler is destroyed first and tears down both parked frames;
     // each awaiter unlinks from its still-alive queue, so ~Queue sees no waiter and
-    // the process exits cleanly. AA_RUN_TESTS reports no in-test failures; the real
+    // the process exits cleanly. SA_RUN_TESTS reports no in-test failures; the real
     // assertion is the clean process exit that follows.
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

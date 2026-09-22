@@ -1,6 +1,6 @@
 #pragma once
 
-// ArduinoAwait — fixed coroutine frame allocator.
+// SimpleAwait — fixed coroutine frame allocator.
 //
 // A statically sized byte arena that hands out variable-size, aligned blocks for
 // coroutine frames without ever touching the global heap. It is a coalescing
@@ -29,7 +29,7 @@
 #include "../config.h"
 #include "../error.h"
 
-namespace arduinoawait {
+namespace simpleawait {
 namespace detail {
 
 template <size_t Bytes>
@@ -151,7 +151,7 @@ public:
             off += blkSize;
         }
 
-        ARDUINOAWAIT_ON_ERROR(Error::internal_error);
+        SIMPLEAWAIT_ON_ERROR(Error::internal_error);
     }
 
     size_t bytesUsed() const noexcept { return bytesUsed_; }
@@ -212,4 +212,4 @@ private:
 };
 
 } // namespace detail
-} // namespace arduinoawait
+} // namespace simpleawait

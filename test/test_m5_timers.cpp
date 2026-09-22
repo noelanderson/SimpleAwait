@@ -21,22 +21,22 @@ void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
 
 // Test-controlled monotonic clock: reads return g_now unchanged.
 namespace { unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::create_task;
-using arduinoawait::delay;
-using arduinoawait::delay_ms;
-using arduinoawait::delay_us;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Task;
-using arduinoawait::TaskHandle;
-using arduinoawait::yield;
+using simpleawait::create_task;
+using simpleawait::delay;
+using simpleawait::delay_ms;
+using simpleawait::delay_us;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Task;
+using simpleawait::TaskHandle;
+using simpleawait::yield;
 
 namespace {
 int g_yield_runs = 0;
@@ -102,22 +102,22 @@ int main() {
     TaskHandle hy = create_task(yielder(3));
     for (int pass = 1; pass <= 3; ++pass) {
         poll();
-        AA_CHECK(g_yield_runs == pass); // exactly one step per pass
-        AA_CHECK(!hy.done());
+        SA_CHECK(g_yield_runs == pass); // exactly one step per pass
+        SA_CHECK(!hy.done());
     }
     poll();
-    AA_CHECK(g_yield_runs == 4);
-    AA_CHECK(hy.done());
+    SA_CHECK(g_yield_runs == 4);
+    SA_CHECK(hy.done());
 
     // ---- delay(0) is a fair yield (equivalent to yield()) ----
     g_zero_runs = 0;
     TaskHandle hz = create_task(zeroDelayer(2));
     poll();
-    AA_CHECK(g_zero_runs == 1); // suspended to a later pass, not re-run this pass
+    SA_CHECK(g_zero_runs == 1); // suspended to a later pass, not re-run this pass
     poll();
-    AA_CHECK(g_zero_runs == 2);
+    SA_CHECK(g_zero_runs == 2);
     poll();
-    AA_CHECK(g_zero_runs == 3 && hz.done());
+    SA_CHECK(g_zero_runs == 3 && hz.done());
 
     // ---- every zero-duration entry point suspends to a LATER pass ----
     for (int i = 0; i < 4; ++i) {
@@ -129,11 +129,11 @@ int main() {
     spawn(zeroDelayUs());
     poll(); // each runs to its pre-await marker and suspends (no same-pass resume)
     for (int i = 0; i < 4; ++i) {
-        AA_CHECK(g_zp[i] == 1); // stopped at the pre-await marker
+        SA_CHECK(g_zp[i] == 1); // stopped at the pre-await marker
     }
     poll(); // each resumes on the later pass and completes
     for (int i = 0; i < 4; ++i) {
-        AA_CHECK(g_zp[i] == 2); // post-await marker ran exactly once
+        SA_CHECK(g_zp[i] == 2); // post-await marker ran exactly once
     }
 
     // ---- positive delay: wakes only when the deadline is reached ----
@@ -141,16 +141,16 @@ int main() {
     g_sleeper_phase = 0;
     TaskHandle hs = create_task(sleeper());
     poll(); // arms a 100 ms timer; does not complete
-    AA_CHECK(g_sleeper_phase == 1);
-    AA_CHECK(!hs.done());
+    SA_CHECK(g_sleeper_phase == 1);
+    SA_CHECK(!hs.done());
     g_now = 99999; // 99.999 ms: not yet due
     poll();
-    AA_CHECK(g_sleeper_phase == 1); // no early wake
-    AA_CHECK(!hs.done());
+    SA_CHECK(g_sleeper_phase == 1); // no early wake
+    SA_CHECK(!hs.done());
     g_now = 100000; // exactly due
     poll();
-    AA_CHECK(g_sleeper_phase == 2);
-    AA_CHECK(hs.done());
+    SA_CHECK(g_sleeper_phase == 2);
+    SA_CHECK(hs.done());
 
     // ---- multiple + equal deadlines: deadline order across passes, slot order
     //      within a pass; no early wake; no repeat wake ----
@@ -160,20 +160,20 @@ int main() {
     spawn(waker(2, 200)); // slot B, deadline 200 ms
     spawn(waker(3, 100)); // slot C, deadline 100 ms (equal to waker 1)
     poll(); // now=0: all three arm timers; none due
-    AA_CHECK(g_wake_count == 0);
+    SA_CHECK(g_wake_count == 0);
     g_now = 100000; // waker 1 and 3 due; waker 2 not
     poll();
-    AA_CHECK(g_wake_count == 2);
-    AA_CHECK(g_wake_order[0] == 1 && g_wake_order[1] == 3); // equal deadline -> slot order
+    SA_CHECK(g_wake_count == 2);
+    SA_CHECK(g_wake_order[0] == 1 && g_wake_order[1] == 3); // equal deadline -> slot order
     g_now = 199999;
     poll();
-    AA_CHECK(g_wake_count == 2); // waker 2 not yet due
+    SA_CHECK(g_wake_count == 2); // waker 2 not yet due
     g_now = 200000;
     poll();
-    AA_CHECK(g_wake_count == 3 && g_wake_order[2] == 2);
+    SA_CHECK(g_wake_count == 3 && g_wake_order[2] == 2);
     g_now = 500000;
     poll();
-    AA_CHECK(g_wake_count == 3); // no repeat wake after completion
+    SA_CHECK(g_wake_count == 3); // no repeat wake after completion
 
     // ---- multiple DISTINCT deadlines all overdue at one poll wake in DEADLINE
     //      order, not slot order (regression: earlier-slot task has the LATER
@@ -183,31 +183,31 @@ int main() {
     spawn(waker(1, 200)); // lower slot, LATER deadline (200 ms)
     spawn(waker(2, 100)); // higher slot, EARLIER deadline (100 ms)
     poll();               // arm both; none due
-    AA_CHECK(g_wake_count == 0);
+    SA_CHECK(g_wake_count == 0);
     g_now = 300000;       // both overdue in a single poll
     poll();
-    AA_CHECK(g_wake_count == 2);
-    AA_CHECK(g_wake_order[0] == 2 && g_wake_order[1] == 1); // 100 ms before 200 ms
+    SA_CHECK(g_wake_count == 2);
+    SA_CHECK(g_wake_order[0] == 2 && g_wake_order[1] == 1); // 100 ms before 200 ms
 
     // ---- a task can re-arm a timer in a loop (relative deadlines) ----
     g_now = 0;
     g_periodic_ticks = 0;
     TaskHandle hp = create_task(periodic(3));
     poll(); // now=0: arms first 10 ms timer
-    AA_CHECK(g_periodic_ticks == 0);
+    SA_CHECK(g_periodic_ticks == 0);
     g_now = 10000;
     poll();
-    AA_CHECK(g_periodic_ticks == 1);
+    SA_CHECK(g_periodic_ticks == 1);
     g_now = 20000;
     poll();
-    AA_CHECK(g_periodic_ticks == 2);
+    SA_CHECK(g_periodic_ticks == 2);
     g_now = 30000;
     poll();
-    AA_CHECK(g_periodic_ticks == 3 && hp.done());
+    SA_CHECK(g_periodic_ticks == 3 && hp.done());
 
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(sch.activeTaskCount() == 0);
     // The timer/yield path never touched the global heap.
-    AA_CHECK(g_new_calls == newAtStart);
+    SA_CHECK(g_new_calls == newAtStart);
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

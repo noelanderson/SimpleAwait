@@ -1,6 +1,6 @@
 #pragma once
 
-// ArduinoAwait — Task<void>: a lazy, move-only coroutine handle.
+// SimpleAwait — Task<void>: a lazy, move-only coroutine handle.
 //
 // Calling a Task-returning coroutine creates the coroutine frame (allocated from
 // the fixed frame pool, never the global heap) and immediately suspends at
@@ -13,7 +13,7 @@
 // (unscheduled) frame destroys that frame exactly once, returning its bytes to
 // the pool.
 //
-// Only Task<void> is functional in V1 (per docs/arduinoawait/V1_API_CONTRACT.md
+// Only Task<void> is functional in V1 (per docs/simpleawait/V1_API_CONTRACT.md
 // §4). Instantiating Task<T> for any other T is a clear compile error.
 
 #include <coroutine>
@@ -24,7 +24,7 @@
 #include "error.h"
 #include "detail/global_frame_pool.h"
 
-namespace arduinoawait {
+namespace simpleawait {
 
 template <class T = void>
 class Task;
@@ -40,7 +40,7 @@ std::coroutine_handle<> take_frame(Task<void>& task) noexcept;
 
 // Returns true if the child was adopted by the scheduler (the awaiting coroutine
 // must stay suspended); false if the awaiting coroutine is not the currently
-// running ArduinoAwait task (the error was reported and the caller must resume
+// running SimpleAwait task (the error was reported and the caller must resume
 // rather than hang). `awaiting` is the coroutine actually suspending on this
 // await. Defined in scheduler.h.
 bool start_child(std::coroutine_handle<> child, std::coroutine_handle<> awaiting) noexcept;
@@ -75,13 +75,13 @@ public:
         const std::coroutine_handle<> child = child_;
         child_ = {}; // hand ownership to the scheduler (or its failure path)
         // Pass the actual awaiting coroutine so the scheduler can confirm it is
-        // the running ArduinoAwait task before adoption; a foreign or nested
+        // the running SimpleAwait task before adoption; a foreign or nested
         // coroutine must not be attached to an unrelated parent.
         return start_child(child, awaiting);
     }
     void await_resume() const noexcept {
         if (was_empty_) {
-            ARDUINOAWAIT_ON_ERROR(Error::task_awaited_twice);
+            SIMPLEAWAIT_ON_ERROR(Error::task_awaited_twice);
         }
     }
 
@@ -95,7 +95,7 @@ private:
 template <class T>
 class Task {
     static_assert(detail::task_type_unsupported<T>,
-                  "ArduinoAwait V1 supports only Task<void>");
+                  "SimpleAwait V1 supports only Task<void>");
 };
 
 template <>
@@ -173,7 +173,7 @@ struct Task<void>::promise_type {
     std::suspend_always final_suspend() noexcept { return {}; }
     void return_void() noexcept {}
     void unhandled_exception() noexcept {
-        ARDUINOAWAIT_ON_ERROR(Error::unhandled_exception);
+        SIMPLEAWAIT_ON_ERROR(Error::unhandled_exception);
     }
 
     // Coroutine frames are allocated from the fixed pool, never the global heap.
@@ -199,7 +199,7 @@ private:
     static void* frame_alloc(std::size_t size) noexcept {
         void* p = detail::frame_pool().allocate(size);
         if (p == nullptr) {
-            ARDUINOAWAIT_ON_ERROR(Error::frame_pool_exhausted);
+            SIMPLEAWAIT_ON_ERROR(Error::frame_pool_exhausted);
         }
         return p; // reachable via the success path; no unreachable code after the hook
     }
@@ -213,4 +213,4 @@ inline std::coroutine_handle<> take_frame(Task<void>& task) noexcept {
 }
 } // namespace detail
 
-} // namespace arduinoawait
+} // namespace simpleawait

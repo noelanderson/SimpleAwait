@@ -11,19 +11,19 @@
 #include <cstdint>
 
 namespace { int g_last_error = -1; unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::Error;
-using arduinoawait::poll;
-using arduinoawait::Queue;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Task;
+using simpleawait::Error;
+using simpleawait::poll;
+using simpleawait::Queue;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Task;
 
 namespace {
 
@@ -74,7 +74,7 @@ int main() {
         poll(); // receiver parks on the empty queue
         // q is destroyed here WITH a parked receiver
     }
-    AA_CHECK(g_last_error == static_cast<int>(Error::object_destroyed_with_waiters));
+    SA_CHECK(g_last_error == static_cast<int>(Error::object_destroyed_with_waiters));
 
     // ---- destroying a queue with a parked SENDER is a deterministic error ----
     g_last_error = -1;
@@ -85,7 +85,7 @@ int main() {
         poll(); // sender parks on the full queue
         // q is destroyed here WITH a parked sender
     }
-    AA_CHECK(g_last_error == static_cast<int>(Error::object_destroyed_with_waiters));
+    SA_CHECK(g_last_error == static_cast<int>(Error::object_destroyed_with_waiters));
 
     // ---- a foreign coroutine receiving outside poll() is rejected, not stranded ----
     {
@@ -94,9 +94,9 @@ int main() {
         g_last_error = -1;
         g_foreign_recv_after = 0;
         foreignReceiver(); // eager, outside poll(): empty -> would suspend, but foreign
-        AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
-        AA_CHECK(g_foreign_recv_after == 1); // caller resumed (not stranded)
-        AA_CHECK(q.empty());
+        SA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
+        SA_CHECK(g_foreign_recv_after == 1); // caller resumed (not stranded)
+        SA_CHECK(q.empty());
         // q has no waiter (rejected before parking) -> clean destructor
     }
 
@@ -108,12 +108,12 @@ int main() {
         g_last_error = -1;
         g_foreign_send_after = 0;
         foreignSender(); // eager, outside poll(): full -> would suspend, but foreign
-        AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
-        AA_CHECK(g_foreign_send_after == 1); // caller resumed (not stranded)
+        SA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
+        SA_CHECK(g_foreign_send_after == 1); // caller resumed (not stranded)
         int v = 0;
-        AA_CHECK(q.tryReceive(v) && v == 7); // only the original value present
-        AA_CHECK(q.empty());                 // the foreign send did not buffer 99
+        SA_CHECK(q.tryReceive(v) && v == 7); // only the original value present
+        SA_CHECK(q.empty());                 // the foreign send did not buffer 99
     }
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

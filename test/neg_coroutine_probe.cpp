@@ -10,7 +10,7 @@
 // not mistaken for a passing test); if the guard ever regresses and this
 // compiles, the test fails, flagging the regression.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
 int main() {
     return 0;

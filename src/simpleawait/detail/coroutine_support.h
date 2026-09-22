@@ -1,8 +1,8 @@
 #pragma once
 
-// ArduinoAwait — compile-time coroutine support checks.
+// SimpleAwait — compile-time coroutine support checks.
 //
-// ArduinoAwait requires native C++20 standard coroutines. This header verifies
+// SimpleAwait requires native C++20 standard coroutines. This header verifies
 // that the active toolchain provides them and then includes <coroutine>.
 //
 // Rationale for the checks used here:
@@ -15,15 +15,15 @@
 //   * The <coroutine> header must be present. Where the standard library also
 //     advertises __cpp_lib_coroutine we surface it, but its absence alone is
 //     not treated as fatal because the language feature plus a usable header is
-//     what ArduinoAwait actually depends on.
+//     what SimpleAwait actually depends on.
 
 #if !defined(__cpp_impl_coroutine)
-#  error "ArduinoAwait requires C++20 or later with standard coroutine support"
+#  error "SimpleAwait requires C++20 or later with standard coroutine support"
 #endif
 
 #if defined(__has_include)
 #  if !__has_include(<coroutine>)
-#    error "ArduinoAwait requires C++20 or later with standard coroutine support (<coroutine> not found)"
+#    error "SimpleAwait requires C++20 or later with standard coroutine support (<coroutine> not found)"
 #  endif
 #endif
 
@@ -33,10 +33,10 @@
 // This does not execute anything; it only forces the names to resolve so a
 // broken/experimental-only coroutine environment fails at include time rather
 // than deep inside a later milestone's template instantiation.
-namespace arduinoawait {
+namespace simpleawait {
 namespace detail {
 
 using coroutine_support_probe = ::std::suspend_always;
 
 } // namespace detail
-} // namespace arduinoawait
+} // namespace simpleawait

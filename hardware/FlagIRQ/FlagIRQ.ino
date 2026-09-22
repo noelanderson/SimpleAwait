@@ -32,15 +32,15 @@
 // "RESULT=PASS" line below. ThreadSafeFlag::set() is ISR-safe only on the
 // first-class targets, so this sketch is unsupported elsewhere by construction.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using arduinoawait::delay_ms;
-using arduinoawait::poll;
-using arduinoawait::spawn;
-using arduinoawait::Task;
-using arduinoawait::ThreadSafeFlag;
-using arduinoawait::detail::CriticalSection;
-using arduinoawait::detail::platform_now_us;
+using simpleawait::delay_ms;
+using simpleawait::poll;
+using simpleawait::spawn;
+using simpleawait::Task;
+using simpleawait::ThreadSafeFlag;
+using simpleawait::detail::CriticalSection;
+using simpleawait::detail::platform_now_us;
 
 static ThreadSafeFlag g_irq;
 
@@ -71,7 +71,7 @@ constexpr unsigned long long kWatchdogUs = 100000ull;  // 100 ms drain deadline
 constexpr unsigned long kQuiesceStable = 3;            // consecutive idle polls
 constexpr unsigned long kQuiesceMaxPolls = 1000;       // safety cap
 
-static inline void aa_isr_fire() {
+static inline void sa_isr_fire() {
     {
         CriticalSection cs; // race-free 64-bit timestamp store
         g_isr_time_us = platform_now_us();
@@ -84,33 +84,33 @@ static inline void aa_isr_fire() {
 #if defined(ARDUINO_ARCH_RP2040)
 #include <pico/platform.h> // __get_current_exception()
 #include <pico/time.h>
-static inline bool aa_in_isr_context() {
+static inline bool sa_in_isr_context() {
     // Nonzero exception number == this core is in an exception/IRQ handler
     // (Arm IPSR / RISC-V equivalent). Zero == thread mode.
     return __get_current_exception() != 0u;
 }
 static repeating_timer_t g_timer;
-static bool aa_on_timer(repeating_timer_t*) {
-    aa_isr_fire();
+static bool sa_on_timer(repeating_timer_t*) {
+    sa_isr_fire();
     return true; // keep repeating
 }
-static void aa_start_storm() {
-    add_repeating_timer_us(-250, aa_on_timer, nullptr, &g_timer); // 250 us period
+static void sa_start_storm() {
+    add_repeating_timer_us(-250, sa_on_timer, nullptr, &g_timer); // 250 us period
 }
-static void aa_stop_storm() { cancel_repeating_timer(&g_timer); }
+static void sa_stop_storm() { cancel_repeating_timer(&g_timer); }
 
 #elif defined(ARDUINO_ARCH_ESP32)
-static inline bool aa_in_isr_context() {
+static inline bool sa_in_isr_context() {
     return xPortInIsrContext() != 0; // per-core FreeRTOS ISR-context check
 }
 static hw_timer_t* g_timer = nullptr;
-static void ARDUINO_ISR_ATTR aa_on_timer() { aa_isr_fire(); }
-static void aa_start_storm() {
+static void ARDUINO_ISR_ATTR sa_on_timer() { sa_isr_fire(); }
+static void sa_start_storm() {
     g_timer = timerBegin(1000000);           // 1 MHz tick
-    timerAttachInterrupt(g_timer, &aa_on_timer);
+    timerAttachInterrupt(g_timer, &sa_on_timer);
     timerAlarm(g_timer, 250, true, 0);       // every 250 ticks = 250 us, autoreload
 }
-static void aa_stop_storm() {
+static void sa_stop_storm() {
     if (g_timer != nullptr) {
         timerEnd(g_timer);
         g_timer = nullptr;
@@ -124,7 +124,7 @@ static void aa_stop_storm() {
 static Task<void> irqWaiter() {
     while (true) {
         co_await g_irq.wait();
-        if (aa_in_isr_context()) {
+        if (sa_in_isr_context()) {
             g_ran_in_isr = true; // forbidden: coroutine body running in ISR context
         }
         unsigned long long isrTime;
@@ -150,7 +150,7 @@ void setup() {
     Serial.begin(115200);
     spawn(irqWaiter());
     spawn(heartbeat());
-    aa_start_storm();
+    sa_start_storm();
 }
 
 void loop() {
@@ -164,7 +164,7 @@ void loop() {
     // waiter's wake count stops advancing — so every coalesced storm signal is
     // consumed before the independent watchdog signal. This keeps the coalescing
     // invariant (evaluated on storm totals) separate from the watchdog drain (N3).
-    aa_stop_storm();
+    sa_stop_storm();
     unsigned long stable = 0;
     unsigned long polls = 0;
     unsigned long lastWakes = g_wakes;

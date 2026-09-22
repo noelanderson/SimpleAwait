@@ -1,4 +1,4 @@
-// ArduinoAwait — 06_ThreadSafeFlagIRQ golden example.
+// SimpleAwait — 06_ThreadSafeFlagIRQ golden example.
 //
 // The canonical IRQ -> coroutine bridge. A hardware interrupt handler calls
 // ThreadSafeFlag::set() from ISR context; a coroutine simply `co_await`s the flag
@@ -8,9 +8,9 @@
 // start of poll(). This is the ONLY primitive whose set() may be called from an
 // external/IRQ context (ordinary Event is scheduler-only).
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 ThreadSafeFlag buttonPressed;
 constexpr int kButtonPin = 2; // wire a button from this pin to GND (INPUT_PULLUP)

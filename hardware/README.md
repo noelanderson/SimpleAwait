@@ -4,7 +4,7 @@ This directory holds on-target validation sketches used to confirm behavior that
 host tests cannot cover (native clock monotonicity, IRQ → `ThreadSafeFlag` wake,
 long-running allocator recovery, and representative peripheral wakeups).
 
-These sketches reach into `arduinoawait::detail::` to exercise internal behavior
+These sketches reach into `simpleawait::detail::` to exercise internal behavior
 and are developer tools, not part of the public application API. Host CI does not
 run them, but it compiles them on every first-class target to confirm the
 relevant platform backend links.

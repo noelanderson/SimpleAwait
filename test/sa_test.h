@@ -1,15 +1,15 @@
 #pragma once
 
-// Minimal deterministic test harness for ArduinoAwait host tests.
+// Minimal deterministic test harness for SimpleAwait host tests.
 //
 // Intentionally tiny and dependency-free: each test is a standalone executable
-// whose main() returns 0 on success and 1 on failure. AA_CHECK records failures
-// (and keeps going so a run reports every problem), AA_RUN_TESTS returns the
+// whose main() returns 0 on success and 1 on failure. SA_CHECK records failures
+// (and keeps going so a run reports every problem), SA_RUN_TESTS returns the
 // aggregate result.
 
 #include <cstdio>
 
-namespace aatest {
+namespace satest {
 
 inline int g_failures = 0;
 
@@ -27,13 +27,13 @@ inline int result() noexcept {
     return 1;
 }
 
-} // namespace aatest
+} // namespace satest
 
-#define AA_CHECK(cond)                                                         \
+#define SA_CHECK(cond)                                                         \
     do {                                                                       \
         if (!(cond)) {                                                         \
-            ::aatest::record_failure(#cond, __FILE__, __LINE__);               \
+            ::satest::record_failure(#cond, __FILE__, __LINE__);               \
         }                                                                      \
     } while (0)
 
-#define AA_RUN_TESTS() return ::aatest::result()
+#define SA_RUN_TESTS() return ::satest::result()

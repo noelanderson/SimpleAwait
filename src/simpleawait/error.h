@@ -1,16 +1,16 @@
 #pragma once
 
-// ArduinoAwait — deterministic error codes.
+// SimpleAwait — deterministic error codes.
 //
 // Core failures are reported deterministically through the configured error
-// hook (ARDUINOAWAIT_ON_ERROR); ArduinoAwait does not use exceptions for control
+// hook (SIMPLEAWAIT_ON_ERROR); SimpleAwait does not use exceptions for control
 // flow. This enum is the frozen V1 error surface (see
-// docs/arduinoawait/V1_API_CONTRACT.md §3). Values are appended, never
+// docs/simpleawait/V1_API_CONTRACT.md §3). Values are appended, never
 // reordered, to keep the underlying integer meanings stable.
 
 #include <cstdint>
 
-namespace arduinoawait {
+namespace simpleawait {
 
 enum class Error : uint8_t {
     none,
@@ -27,4 +27,4 @@ enum class Error : uint8_t {
     internal_error
 };
 
-} // namespace arduinoawait
+} // namespace simpleawait

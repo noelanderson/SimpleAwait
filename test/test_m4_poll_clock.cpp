@@ -12,18 +12,18 @@ int g_clock_reads = 0;
 unsigned long long g_now = 0;
 int g_last_error = -1;
 }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (++g_clock_reads, ++g_now)
-#define ARDUINOAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
+#define SIMPLEAWAIT_CLOCK_NOW_US() (++g_clock_reads, ++g_now)
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::create_task;
-using arduinoawait::Error;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::Task;
+using simpleawait::create_task;
+using simpleawait::Error;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::Task;
 
 namespace {
 Task<void> noop() { co_return; }
@@ -38,17 +38,17 @@ int main() {
     auto& sch = scheduler();
 
     // No sampling before any poll().
-    AA_CHECK(g_clock_reads == 0);
+    SA_CHECK(g_clock_reads == 0);
 
     // An empty poll() still samples exactly once (step 1 precedes the budget).
     poll();
-    AA_CHECK(g_clock_reads == 1);
+    SA_CHECK(g_clock_reads == 1);
 
     // An occupied poll() samples exactly once.
     (void)create_task(noop());
     poll();
-    AA_CHECK(g_clock_reads == 2);
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(g_clock_reads == 2);
+    SA_CHECK(sch.activeTaskCount() == 0);
 
     // A rejected nested poll() (reentry) adds no sample: the outer accepted pass
     // samples once; the inner rejected call samples zero.
@@ -56,8 +56,8 @@ int main() {
     const int before = g_clock_reads;
     (void)create_task(reenters());
     poll();
-    AA_CHECK(g_last_error == static_cast<int>(Error::scheduler_reentry));
-    AA_CHECK(g_clock_reads == before + 1); // exactly one sample for the accepted pass
+    SA_CHECK(g_last_error == static_cast<int>(Error::scheduler_reentry));
+    SA_CHECK(g_clock_reads == before + 1); // exactly one sample for the accepted pass
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

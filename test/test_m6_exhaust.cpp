@@ -6,22 +6,22 @@
 
 #include <cstdint>
 
-#define ARDUINOAWAIT_MAX_TASKS 1
+#define SIMPLEAWAIT_MAX_TASKS 1
 
 namespace { int g_last_error = -1; }
-#define ARDUINOAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
-#define ARDUINOAWAIT_CLOCK_NOW_US() (0ull)
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
+#define SIMPLEAWAIT_CLOCK_NOW_US() (0ull)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::create_task;
-using arduinoawait::Error;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::Task;
-using arduinoawait::TaskHandle;
+using simpleawait::create_task;
+using simpleawait::Error;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::Task;
+using simpleawait::TaskHandle;
 
 namespace {
 int g_child_runs = 0;
@@ -49,11 +49,11 @@ int main() {
     while (!h.done() && guard++ < 20) {
         poll();
     }
-    AA_CHECK(h.done());
-    AA_CHECK(g_last_error == static_cast<int>(Error::task_limit));
-    AA_CHECK(g_child_runs == 0); // child never ran; its frame was released
-    AA_CHECK(g_after == 1);      // parent was requeued, not lost
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(h.done());
+    SA_CHECK(g_last_error == static_cast<int>(Error::task_limit));
+    SA_CHECK(g_child_runs == 0); // child never ran; its frame was released
+    SA_CHECK(g_after == 1);      // parent was requeued, not lost
+    SA_CHECK(sch.activeTaskCount() == 0);
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

@@ -1,15 +1,15 @@
-# ArduinoAwait Architecture
+# SimpleAwait Architecture
 
 **Status:** Normative architecture for V1 implementation  
 **Language floor:** C++20  
 **Primary targets:** RP2040, RP2350 (Arm and RISC-V), ESP32 family  
-**Related:** `ArduinoAwait_Implementation_Spec.md`, `V1_API_CONTRACT.md`, `../../AGENTS.md`, `IMPLEMENTATION_PLAN.md`
+**Related:** `SimpleAwait_Implementation_Spec.md`, `V1_API_CONTRACT.md`, `../../AGENTS.md`, `IMPLEMENTATION_PLAN.md`
 
 ---
 
 ## 1. Architectural intent
 
-ArduinoAwait is a statically allocated, cooperative coroutine runtime for Arduino-class MCUs. It is intentionally closer in behavior to MicroPython `asyncio` than to an RTOS, while using native standard C++ coroutines and a fixed-memory model inspired by TinyAwait.
+SimpleAwait is a statically allocated, cooperative coroutine runtime for Arduino-class MCUs. It is intentionally closer in behavior to MicroPython `asyncio` than to an RTOS, while using native standard C++ coroutines and a fixed-memory model inspired by TinyAwait.
 
 The architecture optimizes for:
 
@@ -526,13 +526,13 @@ The platform layer owns these details; generic coroutine code does not.
 
 ### 16.3 Shipped backend support matrix (V1, normative)
 
-The `detail::CriticalSection` that guards `ThreadSafeFlag::set()` selects exactly one backend at compile time, and each backend guarantees a specific, bounded external-context scope. `set()` is supported ONLY from the contexts listed here; anything wider requires the `ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE`.
+The `detail::CriticalSection` that guards `ThreadSafeFlag::set()` selects exactly one backend at compile time, and each backend guarantees a specific, bounded external-context scope. `set()` is supported ONLY from the contexts listed here; anything wider requires the `SIMPLEAWAIT_CRITICAL_SECTION_OVERRIDE`.
 
 | Target | Backend | Guaranteed `set()` context |
 | --- | --- | --- |
 | RP2040 / RP2350 | `save_and_disable_interrupts()` / `restore_interrupts()` (state-preserving) | Same-core ISR/callback context. Cross-core (core1 → core0) `set()` is NOT guaranteed by the shipped backend and requires an override that adds a cross-core spinlock. |
 | ESP32 family | FreeRTOS `portMUX` spinlock (`portENTER_CRITICAL_SAFE`) | ISR/callback and cross-core context (IRQ + multicore safe). |
-| Generic Arduino (no first-class core, no override) | Unsupported (`#error` on include) | None. There is no portable way to restore the prior interrupt state, and the scheduler's external-signal poll step (`detail::poll_external_signals`, run by `poll()` every pass) needs a usable critical section, so the umbrella `<ArduinoAwait.h>` does not compile. Supply an override or use a first-class target. |
+| Generic Arduino (no first-class core, no override) | Unsupported (`#error` on include) | None. There is no portable way to restore the prior interrupt state, and the scheduler's external-signal poll step (`detail::poll_external_signals`, run by `poll()` every pass) needs a usable critical section, so the umbrella `<SimpleAwait.h>` does not compile. Supply an override or use a first-class target. |
 | Host | No-op | Deterministic single-threaded tests only; exercises the state machine, not real concurrency. |
 
 The RP2040/RP2350 same-core guarantee is the V1 first-class scope; a first-class cross-core backend is out of scope for V1 (§18 optimization deferrals). On-device IRQ-stress validation of these backends is a pre-release gate (AGENTS.md §16), executed by `hardware/FlagIRQ`.
@@ -676,7 +676,7 @@ Cross-core payload transport is deferred to a dedicated bounded primitive such a
 
 ## 23. ESP32/FreeRTOS boundary
 
-A C++ ArduinoAwait Task is not a FreeRTOS task.
+A C++ SimpleAwait Task is not a FreeRTOS task.
 
 `create_task()` and `spawn()` do not call `xTaskCreate()`.
 

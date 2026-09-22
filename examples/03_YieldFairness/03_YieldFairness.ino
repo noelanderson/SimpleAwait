@@ -1,4 +1,4 @@
-// ArduinoAwait — 03_YieldFairness golden example.
+// SimpleAwait — 03_YieldFairness golden example.
 //
 // Demonstrates cooperative fairness. Two tasks never block: each does a unit of
 // work and then co_await yield(). Because yield() always defers to a LATER poll()
@@ -6,9 +6,9 @@
 // running task cannot starve another ready task. A third task uses delay_ms() to
 // show timed work coexisting with the pure yielders in the same loop().
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 unsigned long g_a = 0;
 unsigned long g_b = 0;
@@ -16,11 +16,11 @@ unsigned long g_b = 0;
 // Increments the counter pointed to, yielding after each step. The pointer is
 // copied into the coroutine frame and refers to a global, so it stays valid.
 // yield() is qualified: the Arduino core defines a global ::yield(), so a bare
-// yield() would be ambiguous under `using namespace arduinoawait`.
+// yield() would be ambiguous under `using namespace simpleawait`.
 Task<void> counter(unsigned long* ticks) {
     while (true) {
         ++(*ticks);
-        co_await arduinoawait::yield();
+        co_await simpleawait::yield();
     }
 }
 

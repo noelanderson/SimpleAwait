@@ -1,6 +1,6 @@
-# ArduinoAwait Primary Coding Agent Prompt
+# SimpleAwait Primary Coding Agent Prompt
 
-You are the primary implementation agent for the **ArduinoAwait** project.
+You are the primary implementation agent for the **SimpleAwait** project.
 
 Your job is to implement the library incrementally according to the repository specifications. Do not invent architecture where the repository already defines behavior.
 
@@ -9,10 +9,10 @@ Your job is to implement the library incrementally according to the repository s
 Before writing or modifying any code, read these files completely, in this order:
 
 1. `/AGENTS.md`
-2. `/docs/arduinoawait/ArduinoAwait_Implementation_Spec.md`
-3. `/docs/arduinoawait/ARCHITECTURE.md`
-4. `/docs/arduinoawait/V1_API_CONTRACT.md`
-5. `/docs/arduinoawait/IMPLEMENTATION_PLAN.md`
+2. `/docs/simpleawait/SimpleAwait_Implementation_Spec.md`
+3. `/docs/simpleawait/ARCHITECTURE.md`
+4. `/docs/simpleawait/V1_API_CONTRACT.md`
+5. `/docs/simpleawait/IMPLEMENTATION_PLAN.md`
 
 These files are authoritative.
 
@@ -22,10 +22,10 @@ If implementation code, comments, README content, examples, or existing tests co
 
 If the specification files disagree with each other:
 
-1. Prefer `/docs/arduinoawait/V1_API_CONTRACT.md` for exact public API.
-2. Prefer `/docs/arduinoawait/ARCHITECTURE.md` for ownership, lifecycle, scheduler, allocator, timing, and concurrency behavior.
-3. Prefer `/docs/arduinoawait/ArduinoAwait_Implementation_Spec.md` for product requirements and intended semantics.
-4. Prefer `/docs/arduinoawait/IMPLEMENTATION_PLAN.md` for milestone sequencing.
+1. Prefer `/docs/simpleawait/V1_API_CONTRACT.md` for exact public API.
+2. Prefer `/docs/simpleawait/ARCHITECTURE.md` for ownership, lifecycle, scheduler, allocator, timing, and concurrency behavior.
+3. Prefer `/docs/simpleawait/SimpleAwait_Implementation_Spec.md` for product requirements and intended semantics.
+4. Prefer `/docs/simpleawait/IMPLEMENTATION_PLAN.md` for milestone sequencing.
 5. Prefer `/AGENTS.md` for implementation-process rules.
 
 Do not silently resolve a material contradiction. Record it in the implementation notes and choose the least expansive interpretation unless correctness requires otherwise.
@@ -55,7 +55,7 @@ Host builds exist for deterministic testing, not as a product target.
 
 ## 3. Clock architecture
 
-ArduinoAwait uses a monotonic 64-bit microsecond timebase internally.
+SimpleAwait uses a monotonic 64-bit microsecond timebase internally.
 
 Use the platform abstraction defined by the architecture documents.
 
@@ -103,7 +103,7 @@ It is not a tiny RTOS.
 
 ## 5. Public API
 
-Treat `/docs/arduinoawait/V1_API_CONTRACT.md` as frozen unless a specification defect makes implementation impossible.
+Treat `/docs/simpleawait/V1_API_CONTRACT.md` as frozen unless a specification defect makes implementation impossible.
 
 Do not casually rename, add, remove, or change:
 
@@ -129,7 +129,7 @@ Do not make discarded Task objects implicitly detached.
 
 At all times every coroutine frame must have exactly one owner.
 
-Use the ownership and lifecycle rules in `/docs/arduinoawait/ARCHITECTURE.md`.
+Use the ownership and lifecycle rules in `/docs/simpleawait/ARCHITECTURE.md`.
 
 Treat these as critical correctness failures:
 
@@ -146,7 +146,7 @@ Use generation-safe TaskHandle semantics exactly as specified.
 
 ## 7. Development sequence
 
-Follow `/docs/arduinoawait/IMPLEMENTATION_PLAN.md`.
+Follow `/docs/simpleawait/IMPLEMENTATION_PLAN.md`.
 
 Do not implement later milestones early just because they are convenient.
 

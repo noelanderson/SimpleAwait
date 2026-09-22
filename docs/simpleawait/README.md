@@ -1,6 +1,6 @@
-# ArduinoAwait Code Generation Pack
+# SimpleAwait Code Generation Pack
 
-Extract this archive directly into the root of the ArduinoAwait repository.
+Extract this archive directly into the root of the SimpleAwait repository.
 
 Resulting layout:
 
@@ -13,8 +13,8 @@ AGENTS.md
   prompts/
     PRIMARY_AGENT_PROMPT.md
 docs/
-  arduinoawait/
-    ArduinoAwait_Implementation_Spec.md
+  simpleawait/
+    SimpleAwait_Implementation_Spec.md
     ARCHITECTURE.md
     V1_API_CONTRACT.md
     IMPLEMENTATION_PLAN.md
@@ -34,4 +34,4 @@ Repository-wide agent instructions:
 
 `/AGENTS.md`
 
-The canonical specification documents are under `/docs/arduinoawait/`.
+The canonical specification documents are under `/docs/simpleawait/`.

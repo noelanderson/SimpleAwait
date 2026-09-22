@@ -1,6 +1,6 @@
 #pragma once
 
-// ArduinoAwait — deadline arithmetic on the 64-bit microsecond timebase.
+// SimpleAwait — deadline arithmetic on the 64-bit microsecond timebase.
 //
 // Duration math widens before multiplying and checks for overflow before it can
 // happen. Per the V1 policy, a deadline that would overflow uint64 is a
@@ -13,7 +13,7 @@
 #include "../error.h"
 #include "platform_clock.h" // tick_t
 
-namespace arduinoawait {
+namespace simpleawait {
 namespace detail {
 
 // Widen milliseconds to microseconds. A uint32 millisecond count times 1000 has
@@ -45,7 +45,7 @@ constexpr bool add_overflows(tick_t a, tick_t b) noexcept {
                                            tick_t& out) noexcept {
     const bool overflow = add_overflows(now, duration_us);
     if (overflow) {
-        ARDUINOAWAIT_ON_ERROR(Error::deadline_overflow);
+        SIMPLEAWAIT_ON_ERROR(Error::deadline_overflow);
     } else {
         out = now + duration_us;
     }
@@ -53,4 +53,4 @@ constexpr bool add_overflows(tick_t a, tick_t b) noexcept {
 }
 
 } // namespace detail
-} // namespace arduinoawait
+} // namespace simpleawait

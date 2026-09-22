@@ -1,21 +1,21 @@
-# ArduinoAwait Coding-Agent Instructions
+# SimpleAwait Coding-Agent Instructions
 
-This file is the operating contract for AI coding agents implementing ArduinoAwait.
+This file is the operating contract for AI coding agents implementing SimpleAwait.
 
 Read these files before changing code:
 
-1. `docs/arduinoawait/V1_API_CONTRACT.md`
-2. `docs/arduinoawait/ARCHITECTURE.md`
-3. `docs/arduinoawait/ArduinoAwait_Implementation_Spec.md`
-4. `docs/arduinoawait/IMPLEMENTATION_PLAN.md`
+1. `docs/simpleawait/V1_API_CONTRACT.md`
+2. `docs/simpleawait/ARCHITECTURE.md`
+3. `docs/simpleawait/SimpleAwait_Implementation_Spec.md`
+4. `docs/simpleawait/IMPLEMENTATION_PLAN.md`
 
 If they conflict, do not silently choose one interpretation. For implementation work, the intended precedence is:
 
 ```text
-docs/arduinoawait/V1_API_CONTRACT.md
-    > docs/arduinoawait/ARCHITECTURE.md
-    > docs/arduinoawait/ArduinoAwait_Implementation_Spec.md
-    > docs/arduinoawait/IMPLEMENTATION_PLAN.md
+docs/simpleawait/V1_API_CONTRACT.md
+    > docs/simpleawait/ARCHITECTURE.md
+    > docs/simpleawait/SimpleAwait_Implementation_Spec.md
+    > docs/simpleawait/IMPLEMENTATION_PLAN.md
 ```
 
 When a conflict is discovered, update the documents together before implementing behavior that would make the inconsistency permanent.
@@ -333,7 +333,7 @@ The following examples are executable API contracts and must continue to compile
 08_WaitUntil
 ```
 
-If a public API change requires editing these examples, update `docs/arduinoawait/V1_API_CONTRACT.md` first.
+If a public API change requires editing these examples, update `docs/simpleawait/V1_API_CONTRACT.md` first.
 
 ---
 

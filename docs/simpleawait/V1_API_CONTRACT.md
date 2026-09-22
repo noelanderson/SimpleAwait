@@ -1,8 +1,8 @@
-# ArduinoAwait V1 Public API Contract
+# SimpleAwait V1 Public API Contract
 
 **Status:** Frozen public surface for V1 code generation  
 **Language floor:** C++20  
-**Namespace:** `arduinoawait`
+**Namespace:** `simpleawait`
 
 This file freezes the intended V1 API shape. Implementation details may vary, but generated code must not rename or materially alter these APIs without first updating this contract and the architecture/spec documents.
 
@@ -13,13 +13,13 @@ This file freezes the intended V1 API shape. Implementation details may vary, bu
 Primary include:
 
 ```cpp
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 ```
 
 All public declarations are under:
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
     // ...
 }
 ```
@@ -31,7 +31,7 @@ No required global namespace aliases are provided.
 ## 2. Fundamental public types
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 using TaskSlot = uint16_t;
 using TaskGeneration = uint32_t;
@@ -53,7 +53,7 @@ If target constraints require a different slot width, that may change before fir
 ## 3. Error
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 enum class Error : uint8_t {
     none,
@@ -82,7 +82,7 @@ Error reporting is configured by the library error hook. Public APIs do not norm
 The public template is declared from V1 so later typed Tasks do not require renaming the core type.
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 template <class T = void>
 class Task;
@@ -123,7 +123,7 @@ auto t = foo(); // does not run foo yet
 ## 5. TaskHandle
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 class TaskHandle {
 public:
@@ -152,7 +152,7 @@ V1 does not expose cancellation on `TaskHandle`.
 ## 6. Task scheduling
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 [[nodiscard]] TaskHandle create_task(Task<void>&& task);
 void spawn(Task<void>&& task);
@@ -178,7 +178,7 @@ Passing an empty, previously scheduled, or otherwise invalid Task invokes the co
 ## 7. Scheduler
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 class Scheduler {
 public:
@@ -201,7 +201,7 @@ The common Arduino application uses the singleton helper:
 
 ```cpp
 void loop() {
-    arduinoawait::poll();
+    simpleawait::poll();
 }
 ```
 
@@ -212,7 +212,7 @@ void loop() {
 ## 8. delay and yield
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 class YieldAwaitable;
 class DelayAwaitable;
@@ -241,14 +241,14 @@ all suspend and yield fairly; zero duration is not an immediate `await_ready()` 
 
 Positive delays use the internal 64-bit monotonic microsecond clock. If `now_us + duration_us` would overflow `uint64_t`, the operation invokes the configured error hook with `Error::deadline_overflow`; silent wrap and saturation are not V1 behavior.
 
-> **Arduino name collision.** The Arduino core declares global `::yield()` and `::delay()`. Under `using namespace arduinoawait;` a bare `yield()` or `delay(ms)` is therefore ambiguous with the core's globals. Call `arduinoawait::yield()` (qualified) — or define and use `namespace aa = arduinoawait;` — and prefer `delay_ms()`/`delay_us()`, which have no core equivalent. This is a usage convention only; the frozen signatures above are unchanged.
+> **Arduino name collision.** The Arduino core declares global `::yield()` and `::delay()`. Under `using namespace simpleawait;` a bare `yield()` or `delay(ms)` is therefore ambiguous with the core's globals. Call `simpleawait::yield()` (qualified) — or define and use `namespace sa = simpleawait;` — and prefer `delay_ms()`/`delay_us()`, which have no core equivalent. This is a usage convention only; the frozen signatures above are unchanged.
 
 ---
 
 ## 9. Event
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 class Event {
 public:
@@ -284,7 +284,7 @@ Destroying an Event with active waiters is a deterministic programming error.
 ## 10. ThreadSafeFlag
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 class ThreadSafeFlag {
 public:
@@ -323,7 +323,7 @@ The exact external contexts supported by each platform backend must be documente
 ## 11. Queue<T, Capacity>
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 template <class T, size_t Capacity>
 class Queue {
@@ -374,7 +374,7 @@ Destroying Queue with active waiters is a deterministic programming error.
 V1 exposes `waitUntil` as a header-defined coroutine composition:
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 template <class Predicate>
 Task<void> waitUntil(Predicate predicate) {
@@ -399,7 +399,7 @@ The platform clock is intentionally not a normal application API in V1.
 Internal contract:
 
 ```cpp
-namespace arduinoawait::detail {
+namespace simpleawait::detail {
 using tick_t = uint64_t;
 uint64_t platform_now_us() noexcept;
 }
@@ -414,7 +414,7 @@ An advanced/test override may be provided via build configuration, but normal ap
 When diagnostics are enabled:
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 
 struct Stats {
     size_t activeTasks;
@@ -441,17 +441,17 @@ Diagnostic field naming may be normalized before first published release, but on
 Supported compile-time configuration names:
 
 ```cpp
-ARDUINOAWAIT_MAX_TASKS
-ARDUINOAWAIT_FRAME_POOL_BYTES
-ARDUINOAWAIT_ON_ERROR(error)
-ARDUINOAWAIT_ENABLE_DIAGNOSTICS
-ARDUINOAWAIT_ENABLE_ISR
+SIMPLEAWAIT_MAX_TASKS
+SIMPLEAWAIT_FRAME_POOL_BYTES
+SIMPLEAWAIT_ON_ERROR(error)
+SIMPLEAWAIT_ENABLE_DIAGNOSTICS
+SIMPLEAWAIT_ENABLE_ISR
 ```
 
 Optional advanced/test clock override, if implemented:
 
 ```cpp
-ARDUINOAWAIT_CLOCK_NOW_US()
+SIMPLEAWAIT_CLOCK_NOW_US()
 ```
 
 It returns a `uint64_t` count in microseconds.
@@ -489,9 +489,9 @@ They may be introduced later without changing the core V1 ownership model.
 ## 17. Canonical V1 example
 
 ```cpp
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 Event ready;
 Queue<int, 8> samples;

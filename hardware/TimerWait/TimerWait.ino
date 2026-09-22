@@ -10,13 +10,13 @@
 // Developer validation sketch; not run by host CI, but CI compiles it on every
 // first-class target.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using arduinoawait::delay_ms;
-using arduinoawait::poll;
-using arduinoawait::spawn;
-using arduinoawait::Task;
-// Note: arduinoawait::yield() is qualified at the call site rather than brought in
+using simpleawait::delay_ms;
+using simpleawait::poll;
+using simpleawait::spawn;
+using simpleawait::Task;
+// Note: simpleawait::yield() is qualified at the call site rather than brought in
 // with a using-declaration, because the Arduino core defines a global ::yield().
 
 static unsigned long g_yield_ticks = 0;
@@ -26,13 +26,13 @@ static Task<void> blinker() {
     bool on = false;
     // Baseline from the clock before the first wait, so the first reported
     // interval measures one actual delay rather than uptime-at-first-wake.
-    unsigned long long last = arduinoawait::detail::platform_now_us();
+    unsigned long long last = simpleawait::detail::platform_now_us();
     while (true) {
         co_await delay_ms(500);
         on = !on;
         digitalWrite(LED_BUILTIN, on ? HIGH : LOW);
 
-        const unsigned long long now = arduinoawait::detail::platform_now_us();
+        const unsigned long long now = simpleawait::detail::platform_now_us();
         const unsigned long long elapsed_ms = (now - last) / 1000ULL;
         last = now;
         Serial.print("interval_ms=");
@@ -47,7 +47,7 @@ static Task<void> blinker() {
 static Task<void> busy() {
     while (true) {
         ++g_yield_ticks;
-        co_await arduinoawait::yield();
+        co_await simpleawait::yield();
     }
 }
 

@@ -1,4 +1,4 @@
-// ArduinoAwait — 02_TwoTasks golden example.
+// SimpleAwait — 02_TwoTasks golden example.
 //
 // Demonstrates the M4 scheduling API: two independent coroutine Tasks scheduled
 // to run concurrently, driven by a single cooperative poll() pass. `create_task`
@@ -10,9 +10,9 @@
 // so it compiles unchanged from M4 onward. Later milestones add delay()/yield(),
 // which let tasks suspend and interleave over time (see 03_YieldFairness).
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 Task<void> worker(int id) {
     // current_task() is valid only while a task is being resumed by the scheduler.

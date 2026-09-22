@@ -1,6 +1,6 @@
 // M1 platform clock test.
 //
-// Injects a deterministic 64-bit microsecond clock via ARDUINOAWAIT_CLOCK_NOW_US
+// Injects a deterministic 64-bit microsecond clock via SIMPLEAWAIT_CLOCK_NOW_US
 // and verifies platform_now_us() returns exactly the injected value and observes
 // monotonic advances. Also exercises the generic 32-bit micros() extender's
 // wrap handling directly (the extender backs the secondary generic-Arduino
@@ -9,16 +9,16 @@
 #include <cstdint>
 
 // External linkage so the header's inline platform_now_us() may reference it.
-std::uint64_t g_aa_fake_now = 0;
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_aa_fake_now)
+std::uint64_t g_sa_fake_now = 0;
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_sa_fake_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::detail::Micros32Extender;
-using arduinoawait::detail::platform_now_us;
-using arduinoawait::detail::tick_t;
+using simpleawait::detail::Micros32Extender;
+using simpleawait::detail::platform_now_us;
+using simpleawait::detail::tick_t;
 
 static_assert(sizeof(tick_t) == 8, "tick_t is a 64-bit microsecond type");
 
@@ -36,32 +36,32 @@ static_assert(extender_after_wrap() == ((std::uint64_t{1} << 32) | 0x10u),
 
 int main() {
     // Exact injected values.
-    g_aa_fake_now = 0;
-    AA_CHECK(platform_now_us() == 0);
+    g_sa_fake_now = 0;
+    SA_CHECK(platform_now_us() == 0);
 
-    g_aa_fake_now = 1234567;
-    AA_CHECK(platform_now_us() == 1234567);
+    g_sa_fake_now = 1234567;
+    SA_CHECK(platform_now_us() == 1234567);
 
-    g_aa_fake_now = 0xFFFFFFFFFFULL; // well beyond 32 bits
-    AA_CHECK(platform_now_us() == 0xFFFFFFFFFFULL);
+    g_sa_fake_now = 0xFFFFFFFFFFULL; // well beyond 32 bits
+    SA_CHECK(platform_now_us() == 0xFFFFFFFFFFULL);
 
     // Monotonic advance is observed.
-    g_aa_fake_now = 1000;
+    g_sa_fake_now = 1000;
     const tick_t t0 = platform_now_us();
-    g_aa_fake_now = 1000 + 500;
+    g_sa_fake_now = 1000 + 500;
     const tick_t t1 = platform_now_us();
-    AA_CHECK(t1 > t0);
-    AA_CHECK(t1 - t0 == 500);
+    SA_CHECK(t1 > t0);
+    SA_CHECK(t1 - t0 == 500);
 
     // Extender at runtime: no wrap, then a wrap, then continue.
     Micros32Extender ext;
-    AA_CHECK(ext.extend(0) == 0);
-    AA_CHECK(ext.extend(1000) == 1000);
-    AA_CHECK(ext.extend(0xFFFFFF00u) == 0xFFFFFF00u);
+    SA_CHECK(ext.extend(0) == 0);
+    SA_CHECK(ext.extend(1000) == 1000);
+    SA_CHECK(ext.extend(0xFFFFFF00u) == 0xFFFFFF00u);
     // Wrap: 0x00000005 < previous -> high word increments.
-    AA_CHECK(ext.extend(0x00000005u) == ((std::uint64_t{1} << 32) | 0x5u));
+    SA_CHECK(ext.extend(0x00000005u) == ((std::uint64_t{1} << 32) | 0x5u));
     // Still ascending within the new window.
-    AA_CHECK(ext.extend(0x00000006u) == ((std::uint64_t{1} << 32) | 0x6u));
+    SA_CHECK(ext.extend(0x00000006u) == ((std::uint64_t{1} << 32) | 0x6u));
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

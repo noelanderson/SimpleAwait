@@ -25,17 +25,17 @@ int g_teardown_refused = 0; // create_task() during teardown returned invalid (m
 int g_teardown_polls = 0;  // poll() calls made during teardown (must be >= 1)
 int g_detach_observed = 0; // dying task seen as a completed tombstone in the reentrant dtor (must be 1)
 }
-#define ARDUINOAWAIT_ON_ERROR(error) (void)((g_errors += 1), static_cast<int>(error))
-#define ARDUINOAWAIT_CLOCK_NOW_US() (0ull)
+#define SIMPLEAWAIT_ON_ERROR(error) (void)((g_errors += 1), static_cast<int>(error))
+#define SIMPLEAWAIT_CLOCK_NOW_US() (0ull)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::create_task;
-using arduinoawait::poll;
-using arduinoawait::Task;
-using arduinoawait::TaskHandle;
+using simpleawait::create_task;
+using simpleawait::poll;
+using simpleawait::Task;
+using simpleawait::TaskHandle;
 
 namespace {
 
@@ -102,9 +102,9 @@ int main() {
     // Schedule the reentrant task but DO NOT poll it: it stays pending in a slot,
     // so its frame is destroyed by the scheduler singleton at program exit.
     TaskHandle h = create_task(reentrantTask(Reentrant{}));
-    AA_CHECK(h.valid());
-    AA_CHECK(!h.done()); // never polled
+    SA_CHECK(h.valid());
+    SA_CHECK(!h.done()); // never polled
     g_scheduled = h;     // observed from the reentrant destructor at teardown
 
-    AA_RUN_TESTS(); // returns 0; FinalCheck runs at exit and enforces clean teardown
+    SA_RUN_TESTS(); // returns 0; FinalCheck runs at exit and enforces clean teardown
 }

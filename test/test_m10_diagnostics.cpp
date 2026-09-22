@@ -1,6 +1,6 @@
 // M10 diagnostics test — Stats/stats() snapshot (V1_API_CONTRACT §14).
 //
-// Compiled with ARDUINOAWAIT_ENABLE_DIAGNOSTICS=1. Verifies the scheduler and
+// Compiled with SIMPLEAWAIT_ENABLE_DIAGNOSTICS=1. Verifies the scheduler and
 // frame-pool counters: idle is all-zero with frames free; active tasks are counted
 // with frame bytes in use and peaks tracked; and after a completed cycle the live
 // counts and frame bytes return to zero while the high-water marks are retained and
@@ -9,21 +9,21 @@
 #include <cstddef>
 #include <cstdint>
 
-#define ARDUINOAWAIT_ENABLE_DIAGNOSTICS 1
+#define SIMPLEAWAIT_ENABLE_DIAGNOSTICS 1
 namespace { unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::delay_us;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Stats;
-using arduinoawait::stats;
-using arduinoawait::Task;
+using simpleawait::delay_us;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Stats;
+using simpleawait::stats;
+using simpleawait::Task;
 
 namespace {
 Task<void> sleeper(uint64_t us) {
@@ -31,7 +31,7 @@ Task<void> sleeper(uint64_t us) {
 }
 Task<void> spinner(int n) {
     for (int i = 0; i < n; ++i) {
-        co_await arduinoawait::yield();
+        co_await simpleawait::yield();
     }
 }
 } // namespace
@@ -42,12 +42,12 @@ int main() {
     // ---- idle: all counts zero, all frame bytes free, no failures ----
     {
         const Stats s = stats();
-        AA_CHECK(s.activeTasks == 0);
-        AA_CHECK(s.readyTasks == 0);
-        AA_CHECK(s.waitingTimers == 0);
-        AA_CHECK(s.frameBytesUsed == 0);
-        AA_CHECK(s.frameBytesFree > 0);
-        AA_CHECK(s.allocationFailures == 0);
+        SA_CHECK(s.activeTasks == 0);
+        SA_CHECK(s.readyTasks == 0);
+        SA_CHECK(s.waitingTimers == 0);
+        SA_CHECK(s.frameBytesUsed == 0);
+        SA_CHECK(s.frameBytesFree > 0);
+        SA_CHECK(s.allocationFailures == 0);
     }
 
     // ---- active tasks are counted; frames are in use; peaks track ----
@@ -57,13 +57,13 @@ int main() {
     poll();
     {
         const Stats s = stats();
-        AA_CHECK(s.activeTasks == 2);
-        AA_CHECK(s.peakTasks >= 2);
-        AA_CHECK(s.waitingTimers == 1);              // the sleeper
-        AA_CHECK(s.readyTasks >= 1);                 // the spinner requeued
-        AA_CHECK(s.frameBytesUsed > 0);
-        AA_CHECK(s.peakFrameBytesUsed >= s.frameBytesUsed);
-        AA_CHECK(s.allocationFailures == 0);
+        SA_CHECK(s.activeTasks == 2);
+        SA_CHECK(s.peakTasks >= 2);
+        SA_CHECK(s.waitingTimers == 1);              // the sleeper
+        SA_CHECK(s.readyTasks >= 1);                 // the spinner requeued
+        SA_CHECK(s.frameBytesUsed > 0);
+        SA_CHECK(s.peakFrameBytesUsed >= s.frameBytesUsed);
+        SA_CHECK(s.allocationFailures == 0);
     }
 
     // ---- after a completed cycle: live counts and frame bytes are zero again,
@@ -75,14 +75,14 @@ int main() {
     }
     {
         const Stats s = stats();
-        AA_CHECK(s.activeTasks == 0);
-        AA_CHECK(s.readyTasks == 0);
-        AA_CHECK(s.waitingTimers == 0);
-        AA_CHECK(s.frameBytesUsed == 0);   // every frame recovered
-        AA_CHECK(s.peakTasks >= 2);        // high-water mark retained
-        AA_CHECK(s.peakFrameBytesUsed > 0);
-        AA_CHECK(s.allocationFailures == 0);
+        SA_CHECK(s.activeTasks == 0);
+        SA_CHECK(s.readyTasks == 0);
+        SA_CHECK(s.waitingTimers == 0);
+        SA_CHECK(s.frameBytesUsed == 0);   // every frame recovered
+        SA_CHECK(s.peakTasks >= 2);        // high-water mark retained
+        SA_CHECK(s.peakFrameBytesUsed > 0);
+        SA_CHECK(s.allocationFailures == 0);
     }
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

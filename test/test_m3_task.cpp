@@ -22,12 +22,12 @@ void operator delete[](void* p) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::Task;
-using arduinoawait::detail::frame_pool;
+using simpleawait::Task;
+using simpleawait::detail::frame_pool;
 
 namespace {
 bool g_body_ran = false;
@@ -46,58 +46,58 @@ int main() {
         g_body_ran = false;
         const unsigned long long newBefore = g_global_new_calls;
         Task<void> t = make_task();
-        AA_CHECK(static_cast<bool>(t));                    // owns a frame
-        AA_CHECK(!g_body_ran);                             // lazy: body not run
-        AA_CHECK(frame_pool().bytesUsed() > baseUsed);     // frame came from the pool
-        AA_CHECK(g_global_new_calls == newBefore);         // NOT from the global heap
+        SA_CHECK(static_cast<bool>(t));                    // owns a frame
+        SA_CHECK(!g_body_ran);                             // lazy: body not run
+        SA_CHECK(frame_pool().bytesUsed() > baseUsed);     // frame came from the pool
+        SA_CHECK(g_global_new_calls == newBefore);         // NOT from the global heap
     }
-    AA_CHECK(frame_pool().bytesUsed() == baseUsed);        // unscheduled dtor recovered it
-    AA_CHECK(!g_body_ran);
+    SA_CHECK(frame_pool().bytesUsed() == baseUsed);        // unscheduled dtor recovered it
+    SA_CHECK(!g_body_ran);
 
     // ---- move constructor transfers the single ownership token ----
     {
         Task<void> a = make_task();
-        AA_CHECK(static_cast<bool>(a));
+        SA_CHECK(static_cast<bool>(a));
         Task<void> b = std::move(a);
-        AA_CHECK(!static_cast<bool>(a)); // moved-from is empty
-        AA_CHECK(static_cast<bool>(b));  // b now owns the frame
+        SA_CHECK(!static_cast<bool>(a)); // moved-from is empty
+        SA_CHECK(static_cast<bool>(b));  // b now owns the frame
     }                                    // only b destroys it -> no double destroy
-    AA_CHECK(frame_pool().bytesUsed() == baseUsed);
+    SA_CHECK(frame_pool().bytesUsed() == baseUsed);
 
     // ---- move assignment frees the previous frame and takes the source's ----
     {
         Task<void> a = make_task();
         Task<void> b = make_task();
-        AA_CHECK(frame_pool().bytesUsed() > baseUsed);
+        SA_CHECK(frame_pool().bytesUsed() > baseUsed);
         b = std::move(a);
-        AA_CHECK(!static_cast<bool>(a));
-        AA_CHECK(static_cast<bool>(b));
+        SA_CHECK(!static_cast<bool>(a));
+        SA_CHECK(static_cast<bool>(b));
     }
-    AA_CHECK(frame_pool().bytesUsed() == baseUsed);
+    SA_CHECK(frame_pool().bytesUsed() == baseUsed);
 
     // ---- default and moved-from Task are empty with harmless destructors ----
     {
         Task<void> empty;
-        AA_CHECK(!static_cast<bool>(empty));
+        SA_CHECK(!static_cast<bool>(empty));
 
         Task<void> src = make_task();
         Task<void> dst = std::move(src);
-        AA_CHECK(!static_cast<bool>(src)); // harmless to destroy the moved-from one
-        AA_CHECK(static_cast<bool>(dst));
+        SA_CHECK(!static_cast<bool>(src)); // harmless to destroy the moved-from one
+        SA_CHECK(static_cast<bool>(dst));
     }
-    AA_CHECK(frame_pool().bytesUsed() == baseUsed);
+    SA_CHECK(frame_pool().bytesUsed() == baseUsed);
 
     // ---- many create/destroy cycles fully recover the pool (no leak) ----
     {
         const unsigned long long newBefore = g_global_new_calls;
         for (int i = 0; i < 200; ++i) {
             Task<void> t = make_task();
-            AA_CHECK(static_cast<bool>(t));
+            SA_CHECK(static_cast<bool>(t));
         }
-        AA_CHECK(g_global_new_calls == newBefore); // still no global heap use
+        SA_CHECK(g_global_new_calls == newBefore); // still no global heap use
     }
-    AA_CHECK(frame_pool().bytesUsed() == baseUsed);
-    AA_CHECK(frame_pool().allocationFailures() == 0); // never exhausted at this pool size
+    SA_CHECK(frame_pool().bytesUsed() == baseUsed);
+    SA_CHECK(frame_pool().allocationFailures() == 0); // never exhausted at this pool size
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

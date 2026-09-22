@@ -1,6 +1,6 @@
 // Default error-hook death test.
 //
-// The default (non-overridden) ARDUINOAWAIT_ON_ERROR hook must terminate the
+// The default (non-overridden) SIMPLEAWAIT_ON_ERROR hook must terminate the
 // program deterministically: on hosted builds it calls std::abort(). This test
 // prints a marker (so the wrapper can confirm the process actually reached the
 // hook) and then invokes the hook. It is driven by test/run_death_test.cmake,
@@ -10,7 +10,7 @@
 // returned, control would fall off the end of main, return 0, and the wrapper
 // would flag the regression.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
 #include <cstdio>
 
@@ -27,9 +27,9 @@ int main() {
 
     // Marker proving the process launched and reached the hook, so the test
     // wrapper can distinguish a genuine abort from an unrelated launch failure.
-    std::fputs("AA_DEATH_TEST_REACHED\n", stderr);
+    std::fputs("SA_DEATH_TEST_REACHED\n", stderr);
     std::fflush(stderr);
 
     // Default hook is [[noreturn]]; control must not return past this point.
-    ARDUINOAWAIT_ON_ERROR(0);
+    SIMPLEAWAIT_ON_ERROR(0);
 }

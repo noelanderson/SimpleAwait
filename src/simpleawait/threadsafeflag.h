@@ -1,6 +1,6 @@
 #pragma once
 
-// ArduinoAwait — ThreadSafeFlag: single-waiter, auto-reset, coalescing external
+// SimpleAwait — ThreadSafeFlag: single-waiter, auto-reset, coalescing external
 // signal (V1_API_CONTRACT §10, ARCHITECTURE §16).
 //
 // set() is the ONLY method callable from a supported external/IRQ/callback/other-
@@ -19,7 +19,7 @@
 #include "detail/platform_sync.h"
 #include "scheduler.h"
 
-namespace arduinoawait {
+namespace simpleawait {
 
 class ThreadSafeFlag {
 public:
@@ -32,7 +32,7 @@ public:
         // FIRST so poll() can never dereference this freed flag, then report it.
         if (waiter_ != nullptr) {
             unarm();
-            ARDUINOAWAIT_ON_ERROR(Error::object_destroyed_with_waiters);
+            SIMPLEAWAIT_ON_ERROR(Error::object_destroyed_with_waiters);
         }
     }
 
@@ -93,7 +93,7 @@ private:
         if (!scheduler().running_is(awaiting)) {
             // foreign/nested await: invalid_task reported; do not suspend or arm
         } else if (waiter_ != nullptr) {
-            ARDUINOAWAIT_ON_ERROR(Error::multiple_flag_waiters);
+            SIMPLEAWAIT_ON_ERROR(Error::multiple_flag_waiters);
         } else {
             waiter_ = scheduler().park_running();
             arm();
@@ -170,4 +170,4 @@ inline void poll_external_signals() noexcept {
 }
 } // namespace detail
 
-} // namespace arduinoawait
+} // namespace simpleawait

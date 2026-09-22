@@ -6,19 +6,19 @@
 #include <utility>
 
 namespace { int g_last_error = -1; }
-#define ARDUINOAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
-#define ARDUINOAWAIT_CLOCK_NOW_US() (0ull)
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
+#define SIMPLEAWAIT_CLOCK_NOW_US() (0ull)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::create_task;
-using arduinoawait::Error;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::Task;
-using arduinoawait::TaskHandle;
+using simpleawait::create_task;
+using simpleawait::Error;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::Task;
+using simpleawait::TaskHandle;
 
 namespace {
 int g_child_runs = 0;
@@ -37,8 +37,8 @@ Task<void> doubleAwait() {
     ++g_after_double;      // reached: the failed await neither suspends nor hangs
 }
 
-// A foreign (non-ArduinoAwait) coroutine that runs eagerly and self-destroys. It
-// awaits an ArduinoAwait Task while NO scheduler pass is active (current_ is
+// A foreign (non-SimpleAwait) coroutine that runs eagerly and self-destroys. It
+// awaits an SimpleAwait Task while NO scheduler pass is active (current_ is
 // null), which must fail deterministically instead of stranding the caller.
 struct EagerTask {
     struct promise_type {
@@ -58,7 +58,7 @@ EagerTask foreignParent() {
 int g_nested_after = 0;
 int g_outer_after = 0;
 
-// A foreign coroutine invoked synchronously from inside a running ArduinoAwait
+// A foreign coroutine invoked synchronously from inside a running SimpleAwait
 // task. current_ is non-null (the outer task), but the awaiting coroutine is THIS
 // foreign one, so the await must be rejected rather than attached to the outer.
 EagerTask nestedForeign() {
@@ -84,21 +84,21 @@ int main() {
     while (!h.done() && guard++ < 20) {
         poll();
     }
-    AA_CHECK(h.done());
-    AA_CHECK(g_child_runs == 1); // child ran exactly once (the first await)
-    AA_CHECK(g_last_error == static_cast<int>(Error::task_awaited_twice));
-    AA_CHECK(g_after_double == 1); // coroutine continued past the failed second await
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(h.done());
+    SA_CHECK(g_child_runs == 1); // child ran exactly once (the first await)
+    SA_CHECK(g_last_error == static_cast<int>(Error::task_awaited_twice));
+    SA_CHECK(g_after_double == 1); // coroutine continued past the failed second await
+    SA_CHECK(sch.activeTaskCount() == 0);
 
     // ---- a foreign coroutine awaiting a Task outside poll() must not hang ----
     g_last_error = -1;
     g_child_runs = 0;
     g_foreign_after = 0;
     foreignParent(); // runs eagerly to completion; must resume, not strand
-    AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
-    AA_CHECK(g_foreign_after == 1); // caller resumed (not stranded forever)
-    AA_CHECK(g_child_runs == 0);    // child never ran; its frame was released
-    AA_CHECK(sch.activeTaskCount() == 0); // nothing left scheduled
+    SA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
+    SA_CHECK(g_foreign_after == 1); // caller resumed (not stranded forever)
+    SA_CHECK(g_child_runs == 0);    // child never ran; its frame was released
+    SA_CHECK(sch.activeTaskCount() == 0); // nothing left scheduled
 
     // ---- a foreign await NESTED inside a running task is rejected, not misattached ----
     g_last_error = -1;
@@ -110,12 +110,12 @@ int main() {
     while (!ho.done() && g2++ < 20) {
         poll();
     }
-    AA_CHECK(ho.done());
-    AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
-    AA_CHECK(g_nested_after == 1); // foreign continuation ran (not stranded)
-    AA_CHECK(g_child_runs == 0);   // child rejected, never ran
-    AA_CHECK(g_outer_after == 1);  // outer task unaffected, completed normally
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(ho.done());
+    SA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
+    SA_CHECK(g_nested_after == 1); // foreign continuation ran (not stranded)
+    SA_CHECK(g_child_runs == 0);   // child rejected, never ran
+    SA_CHECK(g_outer_after == 1);  // outer task unaffected, completed normally
+    SA_CHECK(sch.activeTaskCount() == 0);
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

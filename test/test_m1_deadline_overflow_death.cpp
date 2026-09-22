@@ -6,7 +6,7 @@
 // the death-test marker, then triggers an overflow. It is driven by
 // run_death_test.cmake, which requires the marker and abnormal termination.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
 #include <cstdio>
 
@@ -14,15 +14,15 @@
 #  include <cstdlib>
 #endif
 
-using arduinoawait::detail::compute_deadline;
-using arduinoawait::detail::tick_t;
+using simpleawait::detail::compute_deadline;
+using simpleawait::detail::tick_t;
 
 int main() {
 #if defined(_MSC_VER)
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
 
-    std::fputs("AA_DEATH_TEST_REACHED\n", stderr);
+    std::fputs("SA_DEATH_TEST_REACHED\n", stderr);
     std::fflush(stderr);
 
     tick_t out = 0;

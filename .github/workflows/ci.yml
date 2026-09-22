@@ -51,7 +51,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build clang
       - name: Configure
-        run: cmake -S . -B build-san -G Ninja -DARDUINOAWAIT_ENABLE_SANITIZERS=ON
+        run: cmake -S . -B build-san -G Ninja -DSIMPLEAWAIT_ENABLE_SANITIZERS=ON
         env:
           CC: clang
           CXX: clang++
@@ -216,13 +216,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.
   #
-  # The frozen public name "ArduinoAwait" starts with the reserved "Arduino"
-  # prefix, which arduino-lint rule LP012 reports as an error at every compliance
-  # level. That prefix is intentional (fixed by V1_API_CONTRACT.md) and only
-  # matters for a future Library Manager publication decision; we deliberately do
-  # NOT enable arduino-lint "official" mode. The gate script validates the
-  # metadata and fails on any error EXCEPT the single documented LP012 deviation,
-  # so genuine metadata regressions still break CI.
+  # arduino-lint checks library.properties/library.json against the Arduino
+  # library specification. The gate script validates the JSON report and fails
+  # closed on ANY error-level rule failure (and on a malformed/inconsistent
+  # report), so genuine metadata regressions break CI.
   # ---------------------------------------------------------------------------
   library-metadata:
     name: Arduino library metadata
@@ -240,9 +237,9 @@ jobs:
           ./arduino-lint --compliance specification --format json "$GITHUB_WORKSPACE" > lint.json
           status=$?
           set -e
-          # arduino-lint exits 0 (no errors) or 1 (rule errors found, e.g. the
-          # expected LP012). Any other exit code means the linter itself failed;
-          # fail closed rather than gating on a possibly-truncated report.
+          # arduino-lint exits 0 (no errors) or 1 (rule errors found). Any other
+          # exit code means the linter itself failed; fail closed rather than
+          # gating on a possibly-truncated report.
           if [ "$status" -gt 1 ]; then
             echo "::error::arduino-lint exited with unexpected status $status"
             cat lint.json || true

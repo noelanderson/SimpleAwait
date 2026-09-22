@@ -2,11 +2,10 @@
 """Self-test for .github/scripts/lint_metadata_gate.py.
 
 Verifies the metadata gate:
-  * accepts a report whose only error is the documented LP012 deviation, and a
-    genuinely clean library;
-  * fails closed on unexpected errors, malformed/empty/non-library reports,
-    unknown rule result/level values, a missing/invalid summary, and a summary
-    errorCount that disagrees with the inspected failures.
+  * passes a genuinely clean library, and treats warnings as non-fatal;
+  * fails closed on ANY error-level rule failure, malformed/empty/non-library
+    reports, unknown rule result/level values, a missing/invalid summary, and a
+    summary errorCount that disagrees with the inspected failures.
 
 Runs under CTest.
 """
@@ -75,9 +74,9 @@ def _report(projects, error_count=None, warning_count=0):
 
 
 _SKETCH = {"projectType": "sketch", "path": "/x/examples/Empty", "rules": []}
-_LP012 = {"ID": "LP012", "result": "fail", "level": "ERROR",
-          "brief": "name starts with Arduino"}
-_OTHER_ERROR = {"ID": "LP001", "result": "fail", "level": "ERROR", "brief": "x"}
+_ERROR = {"ID": "LP001", "result": "fail", "level": "ERROR",
+          "brief": "missing library.properties field"}
+_OTHER_ERROR = {"ID": "LP012", "result": "fail", "level": "ERROR", "brief": "x"}
 _WARNING = {"ID": "LP027", "result": "fail", "level": "WARNING", "brief": "x"}
 
 
@@ -85,16 +84,18 @@ def main():
     cases = [
         # name, expected_exit, factory
 
-        # Accepted.
-        ("lp012-only-plus-warnings", 0,
-         lambda: _run_json(_report([_library([_LP012, _WARNING]), _SKETCH],
-                                   warning_count=1))),
+        # Pass: a clean library, and warnings alone are non-fatal.
         ("clean-library-no-failures", 0,
          lambda: _run_json(_report([_library([]), _SKETCH]))),
+        ("warnings-only-pass", 0,
+         lambda: _run_json(_report([_library([_WARNING]), _SKETCH],
+                                   warning_count=1))),
 
-        # Unexpected error.
-        ("unexpected-error-fails", 1,
-         lambda: _run_json(_report([_library([_LP012, _OTHER_ERROR])]))),
+        # Any error-level failure fails the gate.
+        ("single-error-fails", 1,
+         lambda: _run_json(_report([_library([_ERROR]), _SKETCH]))),
+        ("multiple-errors-fail", 1,
+         lambda: _run_json(_report([_library([_ERROR, _OTHER_ERROR])]))),
 
         # Structural fail-closed.
         ("empty-object-fails-closed", 1, lambda: _run_json({})),

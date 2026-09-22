@@ -20,19 +20,19 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
 
 namespace { unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::create_task;
-using arduinoawait::delay_ms;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::Task;
-using arduinoawait::TaskHandle;
-using arduinoawait::detail::frame_pool;
+using simpleawait::create_task;
+using simpleawait::delay_ms;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::Task;
+using simpleawait::TaskHandle;
+using simpleawait::detail::frame_pool;
 
 namespace {
 int g_seq[32] = {};
@@ -86,15 +86,15 @@ int main() {
     g_seqn = 0;
     TaskHandle hp = create_task(parent());
     poll(); // parent runs to `co_await child()` and suspends (waiting_child)
-    AA_CHECK(g_seqn == 1 && g_seq[0] == 0); // only the parent's pre-await mark
-    AA_CHECK(!hp.done());
+    SA_CHECK(g_seqn == 1 && g_seq[0] == 0); // only the parent's pre-await mark
+    SA_CHECK(!hp.done());
     poll(); // child runs and completes; parent enqueued but NOT resumed this pass
-    AA_CHECK(g_seqn == 2 && g_seq[1] == 1); // child ran
-    AA_CHECK(!hp.done());                   // parent still not resumed (later poll)
+    SA_CHECK(g_seqn == 2 && g_seq[1] == 1); // child ran
+    SA_CHECK(!hp.done());                   // parent still not resumed (later poll)
     poll(); // parent resumes after the child
-    AA_CHECK(g_seqn == 3 && g_seq[2] == 2);
-    AA_CHECK(hp.done());
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(g_seqn == 3 && g_seq[2] == 2);
+    SA_CHECK(hp.done());
+    SA_CHECK(sch.activeTaskCount() == 0);
 
     // ---- nested children compose in the correct order ----
     g_seqn = 0;
@@ -103,11 +103,11 @@ int main() {
     while (!hn.done() && guard++ < 20) {
         poll();
     }
-    AA_CHECK(hn.done());
-    AA_CHECK(g_seqn == 5);
-    AA_CHECK(g_seq[0] == 13 && g_seq[1] == 11 && g_seq[2] == 10 &&
+    SA_CHECK(hn.done());
+    SA_CHECK(g_seqn == 5);
+    SA_CHECK(g_seq[0] == 13 && g_seq[1] == 11 && g_seq[2] == 10 &&
              g_seq[3] == 12 && g_seq[4] == 14);
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(sch.activeTaskCount() == 0);
 
     // ---- a child may suspend on a timer while the parent waits ----
     g_now = 0;
@@ -115,19 +115,19 @@ int main() {
     TaskHandle ht = create_task(timerParent());
     poll(); // parent -> await child
     poll(); // child runs -> marks 20 -> arms a 100 ms timer
-    AA_CHECK(g_seqn == 2 && g_seq[0] == 22 && g_seq[1] == 20);
+    SA_CHECK(g_seqn == 2 && g_seq[0] == 22 && g_seq[1] == 20);
     g_now = 50000;
     poll(); // not due: child sleeps, parent still waiting
-    AA_CHECK(g_seqn == 2);
-    AA_CHECK(!ht.done());
+    SA_CHECK(g_seqn == 2);
+    SA_CHECK(!ht.done());
     g_now = 100000;
     poll(); // child wakes -> marks 21 -> completes -> enqueues parent
-    AA_CHECK(g_seqn == 3 && g_seq[2] == 21);
-    AA_CHECK(!ht.done());
+    SA_CHECK(g_seqn == 3 && g_seq[2] == 21);
+    SA_CHECK(!ht.done());
     poll(); // parent resumes -> marks 23
-    AA_CHECK(g_seqn == 4 && g_seq[3] == 23);
-    AA_CHECK(ht.done());
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(g_seqn == 4 && g_seq[3] == 23);
+    SA_CHECK(ht.done());
+    SA_CHECK(sch.activeTaskCount() == 0);
 
     // ---- full frame recovery after nested-child stress (gate) ----
     const size_t poolBefore = frame_pool().bytesUsed();
@@ -138,11 +138,11 @@ int main() {
         while (!h.done() && g++ < 20) {
             poll();
         }
-        AA_CHECK(h.done());
-        AA_CHECK(g_seqn == 5);
+        SA_CHECK(h.done());
+        SA_CHECK(g_seqn == 5);
     }
-    AA_CHECK(frame_pool().bytesUsed() == poolBefore); // every frame recovered
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(frame_pool().bytesUsed() == poolBefore); // every frame recovered
+    SA_CHECK(sch.activeTaskCount() == 0);
 
     // ---- an extracted-but-unawaited awaiter releases the child frame (no leak) ----
     {
@@ -152,11 +152,11 @@ int main() {
             auto awaiter = std::move(t).operator co_await(); // extracts the child frame
             (void)awaiter; // never awaited: the awaiter destructor must free the frame
         }
-        AA_CHECK(frame_pool().bytesUsed() == poolBase); // frame recovered, not leaked
+        SA_CHECK(frame_pool().bytesUsed() == poolBase); // frame recovered, not leaked
     }
 
     // No child-await frame or scheduler node ever touched the global heap.
-    AA_CHECK(g_new_calls == newAtStart);
+    SA_CHECK(g_new_calls == newAtStart);
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

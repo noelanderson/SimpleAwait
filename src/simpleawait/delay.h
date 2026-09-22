@@ -1,6 +1,6 @@
 #pragma once
 
-// ArduinoAwait — yield() and delay() timer awaitables (V1_API_CONTRACT §8).
+// SimpleAwait — yield() and delay() timer awaitables (V1_API_CONTRACT §8).
 //
 // These suspend the current task cooperatively:
 //   * yield() and delay(0)/delay_ms(0)/delay_us(0) requeue for a LATER poll() pass
@@ -19,7 +19,7 @@
 #include "detail/time_math.h"      // ms_to_us
 #include "scheduler.h"
 
-namespace arduinoawait {
+namespace simpleawait {
 
 // A fair yield point: always suspends and requeues for a later poll() pass.
 class YieldAwaitable {
@@ -62,4 +62,4 @@ private:
     return delay_ms(milliseconds);
 }
 
-} // namespace arduinoawait
+} // namespace simpleawait

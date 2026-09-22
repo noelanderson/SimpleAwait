@@ -6,9 +6,9 @@
 // EXCLUDE_FROM_ALL target and asserted to fail (with the capacity diagnostic) by
 // run_negcompile_test.cmake.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using TooBig = arduinoawait::detail::FramePool<static_cast<std::size_t>(0xFFFFFFFFULL) + 1>;
+using TooBig = simpleawait::detail::FramePool<static_cast<std::size_t>(0xFFFFFFFFULL) + 1>;
 
 static_assert(sizeof(TooBig) > 0, "force instantiation of the capacity check");
 

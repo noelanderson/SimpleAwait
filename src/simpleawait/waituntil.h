@@ -1,6 +1,6 @@
 #pragma once
 
-// ArduinoAwait — waitUntil: header-defined coroutine composition (V1_API_CONTRACT
+// SimpleAwait — waitUntil: header-defined coroutine composition (V1_API_CONTRACT
 // §12, ARCHITECTURE §18).
 //
 // waitUntil(predicate) suspends the calling task at a fair yield point until the
@@ -18,7 +18,7 @@
 #include "delay.h" // yield()
 #include "task.h"
 
-namespace arduinoawait {
+namespace simpleawait {
 
 // GCC emits -Wsubobject-linkage (part of -Wall) because the compiler-generated
 // coroutine frame for waitUntil<Predicate> holds the predicate, and the natural
@@ -42,4 +42,4 @@ Task<void> waitUntil(Predicate predicate) {
 #  pragma GCC diagnostic pop
 #endif
 
-} // namespace arduinoawait
+} // namespace simpleawait

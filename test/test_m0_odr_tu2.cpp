@@ -6,14 +6,14 @@
 
 #include "test_m0_odr.h"
 
-const int* aa_tu2_version_major_addr() {
-    return &arduinoawait::version_major;
+const int* sa_tu2_version_major_addr() {
+    return &simpleawait::version_major;
 }
 
-aa_handler_ptr aa_tu2_error_handler_addr() {
-    return &arduinoawait::detail::default_error_handler<int>;
+sa_handler_ptr sa_tu2_error_handler_addr() {
+    return &simpleawait::detail::default_error_handler<int>;
 }
 
-int aa_tu2_max_tasks() {
-    return ARDUINOAWAIT_MAX_TASKS;
+int sa_tu2_max_tasks() {
+    return SIMPLEAWAIT_MAX_TASKS;
 }

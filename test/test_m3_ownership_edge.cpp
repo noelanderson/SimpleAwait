@@ -12,15 +12,15 @@
 namespace {
 int g_last_error = -1;
 }
-#define ARDUINOAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::Error;
-using arduinoawait::Task;
-using arduinoawait::detail::frame_pool;
+using simpleawait::Error;
+using simpleawait::Task;
+using simpleawait::detail::frame_pool;
 
 namespace {
 
@@ -71,19 +71,19 @@ int main() {
     {
         g_recorded_child = nullptr;
         Task<void> outer = holder_coro(ChildHolder{leaf()});
-        AA_CHECK(static_cast<bool>(outer));
-        AA_CHECK(g_recorded_child != nullptr);
-        AA_CHECK(static_cast<bool>(*g_recorded_child)); // in-frame child owns leaf's frame
-        AA_CHECK(frame_pool().bytesUsed() > base);      // outer's frame + leaf's frame
+        SA_CHECK(static_cast<bool>(outer));
+        SA_CHECK(g_recorded_child != nullptr);
+        SA_CHECK(static_cast<bool>(*g_recorded_child)); // in-frame child owns leaf's frame
+        SA_CHECK(frame_pool().bytesUsed() > base);      // outer's frame + leaf's frame
 
         outer = std::move(*g_recorded_child);           // the dangerous move-assign
 
         // Correct behavior: outer takes leaf's frame; its old frame (holding the
         // now-empty child) is freed. Buggy behavior silently empties outer.
-        AA_CHECK(static_cast<bool>(outer));
+        SA_CHECK(static_cast<bool>(outer));
         // g_recorded_child now dangles (old frame freed); do not dereference it.
     }
-    AA_CHECK(frame_pool().bytesUsed() == base); // full recovery
+    SA_CHECK(frame_pool().bytesUsed() == base); // full recovery
 
     // ---- B2: destroying a frame whose parameter destructor re-enters the Task ----
     {
@@ -95,17 +95,17 @@ int main() {
             ReentrantGuard g;
             g.owner = &t;
             t = guarded_coro(std::move(g)); // frame holds the guard with owner=&t
-            AA_CHECK(static_cast<bool>(t));
+            SA_CHECK(static_cast<bool>(t));
         } // the stack guard (owner nulled by the move) destructs harmlessly
 
         t = Task<void>{}; // destroy t's frame -> guard dtor re-enters -> empties t
 
-        AA_CHECK(g_owned_guard_dtors == 1);   // exactly once: no double destruction
-        AA_CHECK(g_owner_empty_at_dtor);      // detached before destroy (ordering)
-        AA_CHECK(g_last_error != static_cast<int>(Error::internal_error)); // no double free
-        AA_CHECK(!static_cast<bool>(t));
+        SA_CHECK(g_owned_guard_dtors == 1);   // exactly once: no double destruction
+        SA_CHECK(g_owner_empty_at_dtor);      // detached before destroy (ordering)
+        SA_CHECK(g_last_error != static_cast<int>(Error::internal_error)); // no double free
+        SA_CHECK(!static_cast<bool>(t));
     }
-    AA_CHECK(frame_pool().bytesUsed() == base);
+    SA_CHECK(frame_pool().bytesUsed() == base);
 
     // ---- B2b: the SAME reentry via the destructor path (~Task -> reset()) ----
     {
@@ -117,13 +117,13 @@ int main() {
             ReentrantGuard g;
             g.owner = &t;
             t = guarded_coro(std::move(g));
-            AA_CHECK(static_cast<bool>(t));
+            SA_CHECK(static_cast<bool>(t));
         } // t goes out of scope: ~Task -> reset() -> guard dtor re-enters -> empties t
-        AA_CHECK(g_owned_guard_dtors == 1);
-        AA_CHECK(g_owner_empty_at_dtor);
-        AA_CHECK(g_last_error != static_cast<int>(Error::internal_error));
+        SA_CHECK(g_owned_guard_dtors == 1);
+        SA_CHECK(g_owner_empty_at_dtor);
+        SA_CHECK(g_last_error != static_cast<int>(Error::internal_error));
     }
-    AA_CHECK(frame_pool().bytesUsed() == base);
+    SA_CHECK(frame_pool().bytesUsed() == base);
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

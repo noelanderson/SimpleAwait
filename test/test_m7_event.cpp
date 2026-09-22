@@ -18,17 +18,17 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
 
 namespace { unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::Event;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Task;
+using simpleawait::Event;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Task;
 
 namespace {
 int g_woke[16] = {};
@@ -65,34 +65,34 @@ int main() {
     spawn(waiter(&ev, 2));
     spawn(waiter(&ev, 3));
     poll(); // each runs to `co_await ev.wait()` and parks (the Event is clear)
-    AA_CHECK(g_woken == 0);   // clear wait suspended all three
-    AA_CHECK(!ev.isSet());
+    SA_CHECK(g_woken == 0);   // clear wait suspended all three
+    SA_CHECK(!ev.isSet());
     ev.set();                 // latch + wake all current waiters (FIFO)
-    AA_CHECK(ev.isSet());
-    AA_CHECK(g_woken == 0);   // set() does not resume inline
+    SA_CHECK(ev.isSet());
+    SA_CHECK(g_woken == 0);   // set() does not resume inline
     poll();                   // the three woken tasks run in FIFO order
-    AA_CHECK(g_woken == 3);
-    AA_CHECK(g_woke[0] == 1 && g_woke[1] == 2 && g_woke[2] == 3);
+    SA_CHECK(g_woken == 3);
+    SA_CHECK(g_woke[0] == 1 && g_woke[1] == 2 && g_woke[2] == 3);
 
     // ---- wait while set does not suspend; the Event remains set ----
     g_woken = 0;
     spawn(waiter(&ev, 4));
     poll(); // ev is set -> wait() completes without suspension, in one poll
-    AA_CHECK(g_woken == 1 && g_woke[0] == 4);
-    AA_CHECK(ev.isSet()); // remains set until clear()
+    SA_CHECK(g_woken == 1 && g_woke[0] == 4);
+    SA_CHECK(ev.isSet()); // remains set until clear()
 
     // ---- clear affects only future waits ----
     ev.clear();
-    AA_CHECK(!ev.isSet());
+    SA_CHECK(!ev.isSet());
     g_woken = 0;
     spawn(waiter(&ev, 5));
     poll(); // ev is clear again -> suspends
-    AA_CHECK(g_woken == 0);
+    SA_CHECK(g_woken == 0);
     ev.set();
     poll();
-    AA_CHECK(g_woken == 1 && g_woke[0] == 5);
+    SA_CHECK(g_woken == 1 && g_woke[0] == 5);
 
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(sch.activeTaskCount() == 0);
 
     // ---- in-pass set() leaves woken work for a LATER pass (preserving the
     //      already-ready FIFO order), and clear() after set() cannot revoke an
@@ -103,23 +103,23 @@ int main() {
         spawn(waiter(&ev2, 1));
         spawn(waiter(&ev2, 2));
         poll(); // both park on the clear Event
-        AA_CHECK(g_woken == 0);
+        SA_CHECK(g_woken == 0);
         spawn(setterTask(&ev2)); // sets ev2 during its own run
         spawn(plainTask(80));    // unrelated ready task queued after the setter
         poll(); // setter (90) then plain (80) run; the waiters it woke do NOT run
                 // this pass (queued after the budget snapshot)
-        AA_CHECK(g_woken == 2 && g_woke[0] == 90 && g_woke[1] == 80);
-        AA_CHECK(ev2.isSet());
+        SA_CHECK(g_woken == 2 && g_woke[0] == 90 && g_woke[1] == 80);
+        SA_CHECK(ev2.isSet());
         ev2.clear(); // clearing after set() must not revoke the already-issued wakes
-        AA_CHECK(!ev2.isSet());
+        SA_CHECK(!ev2.isSet());
         poll(); // the woken waiters now run, in FIFO order
-        AA_CHECK(g_woken == 4 && g_woke[2] == 1 && g_woke[3] == 2);
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(g_woken == 4 && g_woke[2] == 1 && g_woke[3] == 2);
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // The Event path allocated nothing on the global heap.
-    AA_CHECK(g_new_calls == newAtStart);
+    SA_CHECK(g_new_calls == newAtStart);
     // ev has no waiters here; its destructor at scope end raises no error.
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

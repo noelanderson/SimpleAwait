@@ -11,15 +11,15 @@
 // Uses only the public scheduling API. Developer validation sketch; not run by
 // host CI, but CI compiles it on every first-class target.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using arduinoawait::create_task;
-using arduinoawait::current_task;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Task;
-using arduinoawait::TaskHandle;
+using simpleawait::create_task;
+using simpleawait::current_task;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Task;
+using simpleawait::TaskHandle;
 
 static int g_ran = 0;
 static bool g_current_ok = true;

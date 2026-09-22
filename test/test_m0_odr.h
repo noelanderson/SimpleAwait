@@ -5,10 +5,10 @@
 // confirm the header-only library has a single definition of its inline
 // entities across translation units.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using aa_handler_ptr = void (*)(int) noexcept;
+using sa_handler_ptr = void (*)(int) noexcept;
 
-const int* aa_tu2_version_major_addr();
-aa_handler_ptr aa_tu2_error_handler_addr();
-int aa_tu2_max_tasks();
+const int* sa_tu2_version_major_addr();
+sa_handler_ptr sa_tu2_error_handler_addr();
+int sa_tu2_max_tasks();

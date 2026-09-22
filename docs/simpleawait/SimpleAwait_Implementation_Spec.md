@@ -1,7 +1,7 @@
 # Arduino Cooperative Coroutine Library
 ## Implementation Specification
 
-**Working name:** `ArduinoAwait`  
+**Working name:** `SimpleAwait`  
 **Alternative names:** `TinyAwaitArduino`, `MicroAwait`, `CoroArduino`
 
 **Target version:** 0.3 / MVP design  
@@ -47,7 +47,7 @@ Only one coroutine executes at a time within a scheduler. Context changes occur 
 
 # 2. Design heritage
 
-ArduinoAwait SHALL deliberately combine ideas from four sources while keeping an Arduino-specific implementation.
+SimpleAwait SHALL deliberately combine ideas from four sources while keeping an Arduino-specific implementation.
 
 ## 2.1 TinyAwait — implementation foundation
 
@@ -63,7 +63,7 @@ Use **TinyAwait** as the primary low-level implementation starting point, preser
 - inexpensive scheduler polling;
 - compact timer/scheduler data structures.
 
-TinyAwait's allocator and scheduler ideas should be reused or adapted where they remain appropriate. Its `uint32_t`/`millis()` timebase is **not** a compatibility requirement for ArduinoAwait: first-class RP2040/RP2350/ESP32 targets use a 64-bit monotonic microsecond platform clock.
+TinyAwait's allocator and scheduler ideas should be reused or adapted where they remain appropriate. Its `uint32_t`/`millis()` timebase is **not** a compatibility requirement for SimpleAwait: first-class RP2040/RP2350/ESP32 targets use a 64-bit monotonic microsecond platform clock.
 
 ## 2.2 MicroPython `asyncio` — behavioral model
 
@@ -223,7 +223,7 @@ __cpp_lib_coroutine
 If coroutine support is unavailable, compilation MUST fail with a readable error such as:
 
 ```text
-ArduinoAwait requires C++20 or later with standard coroutine support
+SimpleAwait requires C++20 or later with standard coroutine support
 ```
 
 Do not determine compatibility solely through `__cplusplus`.
@@ -297,14 +297,14 @@ The design SHALL distinguish between:
 All public library entities shall live beneath:
 
 ```cpp
-namespace arduinoawait {
+namespace simpleawait {
 }
 ```
 
 Optional alias:
 
 ```cpp
-namespace aa = arduinoawait;
+namespace sa = simpleawait;
 ```
 
 Avoid placing library internals in the global namespace.
@@ -316,9 +316,9 @@ Avoid placing library internals in the global namespace.
 The desired application style is:
 
 ```cpp
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 Task<void> blink() {
     while (true) {
@@ -345,7 +345,7 @@ void setup() {
 }
 
 void loop() {
-    arduinoawait::poll();
+    simpleawait::poll();
 }
 ```
 
@@ -568,7 +568,7 @@ Reasons:
 - simplifies cancellation and TaskGroup semantics;
 - supports structured concurrency.
 
-If adapting TinyAwait requires a temporary compatibility path for its existing eager/detached behavior, isolate that behavior behind a compatibility macro and do not make it the ArduinoAwait default.
+If adapting TinyAwait requires a temporary compatibility path for its existing eager/detached behavior, isolate that behavior behind a compatibility macro and do not make it the SimpleAwait default.
 
 ---
 
@@ -629,7 +629,7 @@ Typical loop:
 
 ```cpp
 void loop() {
-    arduinoawait::poll();
+    simpleawait::poll();
 
     // ordinary Arduino code remains valid
 }
@@ -641,7 +641,7 @@ The scheduler shall not invoke arbitrary user coroutine code directly from an IR
 
 # 16. Fairness
 
-ArduinoAwait SHALL use FIFO ready-task semantics by default.
+SimpleAwait SHALL use FIFO ready-task semantics by default.
 
 When a running task voluntarily yields, it SHALL be placed behind tasks that are already ready.
 
@@ -753,7 +753,7 @@ co_await delay_ms(500);
 The scheduler's **native internal timebase SHALL NOT be milliseconds**. Define an internal monotonic microsecond tick type:
 
 ```cpp
-namespace arduinoawait::detail {
+namespace simpleawait::detail {
     using tick_t = uint64_t;   // microseconds from platform clock epoch
 }
 ```
@@ -794,7 +794,7 @@ All scheduler timing SHALL go through one platform clock abstraction. Scheduler 
 Required conceptual interface:
 
 ```cpp
-namespace arduinoawait::detail {
+namespace simpleawait::detail {
 
 using tick_t = uint64_t;
 
@@ -835,7 +835,7 @@ uint64_t PlatformClock::now_us() noexcept {
 }
 ```
 
-`esp_timer_get_time()` provides a 64-bit microsecond count since ESP Timer initialization. Deep sleep starts a new timer epoch; ArduinoAwait SHALL treat a deep-sleep wake/reboot as a new scheduler lifetime unless a future persistence feature explicitly defines otherwise.
+`esp_timer_get_time()` provides a 64-bit microsecond count since ESP Timer initialization. Deep sleep starts a new timer epoch; SimpleAwait SHALL treat a deep-sleep wake/reboot as a new scheduler lifetime unless a future persistence feature explicitly defines otherwise.
 
 ## 20.4 Host-test backend
 
@@ -1251,15 +1251,15 @@ Maintain a fixed global or scheduler-owned coroutine frame arena.
 Default configuration:
 
 ```cpp
-ARDUINOAWAIT_MAX_TASKS
-ARDUINOAWAIT_FRAME_POOL_BYTES
+SIMPLEAWAIT_MAX_TASKS
+SIMPLEAWAIT_FRAME_POOL_BYTES
 ```
 
 Recommended defaults:
 
 ```cpp
-#define ARDUINOAWAIT_MAX_TASKS 32
-#define ARDUINOAWAIT_FRAME_POOL_BYTES 4096
+#define SIMPLEAWAIT_MAX_TASKS 32
+#define SIMPLEAWAIT_FRAME_POOL_BYTES 4096
 ```
 
 ---
@@ -1331,7 +1331,7 @@ enum class Error : uint8_t {
 Provide compile-time override:
 
 ```cpp
-#define ARDUINOAWAIT_ON_ERROR(error) ...
+#define SIMPLEAWAIT_ON_ERROR(error) ...
 ```
 
 Default behavior may be:
@@ -1357,7 +1357,7 @@ Embedded builds should work correctly with:
 If coroutine `unhandled_exception()` exists because the C++ coroutine contract requires it, route to:
 
 ```cpp
-ARDUINOAWAIT_ON_ERROR(Error::unhandled_exception)
+SIMPLEAWAIT_ON_ERROR(Error::unhandled_exception)
 ```
 
 Do not implement exception propagation between tasks in V1.
@@ -1607,7 +1607,7 @@ Do not require library initialization unless necessary.
 If initialization is required, prefer:
 
 ```cpp
-ArduinoAwait.begin();
+SimpleAwait.begin();
 ```
 
 but zero-configuration initialization is preferred.
@@ -1619,12 +1619,12 @@ but zero-configuration initialization is preferred.
 Recommended repository:
 
 ```text
-ArduinoAwait/
+SimpleAwait/
 │
 ├── src/
-│   ├── ArduinoAwait.h
+│   ├── SimpleAwait.h
 │   │
-│   └── arduinoawait/
+│   └── simpleawait/
 │       ├── config.h
 │       ├── task.h
 │       ├── task_handle.h
@@ -1767,7 +1767,7 @@ from inside a currently executing `poll()` shall be prohibited.
 Debug builds:
 
 ```cpp
-ARDUINOAWAIT_ON_ERROR(Error::scheduler_reentry);
+SIMPLEAWAIT_ON_ERROR(Error::scheduler_reentry);
 ```
 
 Document:
@@ -1885,12 +1885,12 @@ Task& operator=(const Task&) = delete;
 Supported configuration macros:
 
 ```cpp
-ARDUINOAWAIT_MAX_TASKS
-ARDUINOAWAIT_FRAME_POOL_BYTES
-ARDUINOAWAIT_CLOCK_NOW_US()   // optional advanced/testing override
-ARDUINOAWAIT_ON_ERROR(error)
-ARDUINOAWAIT_ENABLE_DIAGNOSTICS
-ARDUINOAWAIT_ENABLE_ISR
+SIMPLEAWAIT_MAX_TASKS
+SIMPLEAWAIT_FRAME_POOL_BYTES
+SIMPLEAWAIT_CLOCK_NOW_US()   // optional advanced/testing override
+SIMPLEAWAIT_ON_ERROR(error)
+SIMPLEAWAIT_ENABLE_DIAGNOSTICS
+SIMPLEAWAIT_ENABLE_ISR
 ```
 
 Keep configuration surface intentionally small.
@@ -1906,10 +1906,10 @@ Preferred usage:
 ```cpp
 // AwaitConfig.h
 
-#define ARDUINOAWAIT_MAX_TASKS 16
-#define ARDUINOAWAIT_FRAME_POOL_BYTES 3072
+#define SIMPLEAWAIT_MAX_TASKS 16
+#define SIMPLEAWAIT_FRAME_POOL_BYTES 3072
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 ```
 
 Use C++17/20 inline variables where suitable to avoid duplicate scheduler state.
@@ -1986,7 +1986,7 @@ Preserve TinyAwait's cached-nearest-deadline style optimization unless a differe
 
 Ready-queue enqueue/dequeue MUST be O(1).
 
-Do not adopt MicroPython's pairing-heap task queue merely for conceptual similarity; ArduinoAwait's expected small fixed task counts and fixed-memory goal favor simpler timer metadata unless measurement shows otherwise.
+Do not adopt MicroPython's pairing-heap task queue merely for conceptual similarity; SimpleAwait's expected small fixed task counts and fixed-memory goal favor simpler timer metadata unless measurement shows otherwise.
 
 ---
 
@@ -2497,7 +2497,7 @@ Implement/adapt:
 - deterministic error hook;
 - host fake clock.
 
-Do not yet expose TinyAwait's implicit detached execution as the ArduinoAwait model.
+Do not yet expose TinyAwait's implicit detached execution as the SimpleAwait model.
 
 Acceptance: allocator/timer regression tests pass unchanged or with equivalent coverage.
 
@@ -2770,7 +2770,7 @@ void setup() {
 }
 
 void loop() {
-    arduinoawait::poll();
+    simpleawait::poll();
 }
 ```
 
@@ -2879,7 +2879,7 @@ The implementing agent MUST follow these rules:
 
 The first implementation prompt should be:
 
-> Fork or adapt the current TinyAwait implementation into an Arduino-focused library named ArduinoAwait. Preserve its heap-free variable-sized coroutine-frame allocator and compact scheduler/lifetime ideas, but replace its `uint32_t`/`millis()` timebase with ArduinoAwait's `uint64_t` monotonic microsecond clock abstraction. Use `time_us_64()` on RP2040/RP2350, `esp_timer_get_time()` on ESP32, and an injected fake microsecond clock for host tests.
+> Fork or adapt the current TinyAwait implementation into an Arduino-focused library named SimpleAwait. Preserve its heap-free variable-sized coroutine-frame allocator and compact scheduler/lifetime ideas, but replace its `uint32_t`/`millis()` timebase with SimpleAwait's `uint64_t` monotonic microsecond clock abstraction. Use `time_us_64()` on RP2040/RP2350, `esp_timer_get_time()` on ESP32, and an injected fake microsecond clock for host tests.
 >
 > Replace TinyAwait's documented implicit/eager detached coroutine model with a lazy, move-only `Task<void>` model. Calling a Task-producing coroutine must create an unscheduled Task. Implement explicit `create_task(Task<void>&&)`, `spawn(Task<void>&&)`, `TaskHandle`, `current_task()`, and a FIFO ready queue.
 >
@@ -2903,7 +2903,7 @@ The first implementation prompt should be:
 
 After the first assignment passes:
 
-> Extend ArduinoAwait with an intrusive FIFO WaitQueue, scheduler-local manual-reset Event, single-waiter auto-reset ThreadSafeFlag, and statically allocated Queue<T,N>.
+> Extend SimpleAwait with an intrusive FIFO WaitQueue, scheduler-local manual-reset Event, single-waiter auto-reset ThreadSafeFlag, and statically allocated Queue<T,N>.
 >
 > Event must support `wait()`, `set()`, `clear()`, and `isSet()`. Event is scheduler-context only. Multiple waiters must be supported; `set()` schedules all current waiters in FIFO order and leaves the Event set until clear(). Do not add Event::setFromISR().
 >
@@ -2923,7 +2923,7 @@ After the first assignment passes:
 
 When implementation choices are ambiguous, use this rule:
 
-> **ArduinoAwait is a statically allocated, C++20-minimum, Arduino-native equivalent in spirit to MicroPython asyncio — not a tiny RTOS.**
+> **SimpleAwait is a statically allocated, C++20-minimum, Arduino-native equivalent in spirit to MicroPython asyncio — not a tiny RTOS.**
 
 Use:
 
@@ -2961,7 +2961,7 @@ The default implementation SHALL remain cooperative, fixed-memory, event-loop dr
 
 The following table is normative guidance for implementation behavior, not a requirement to duplicate Python naming exactly.
 
-| Python / MicroPython concept | ArduinoAwait concept | Notes |
+| Python / MicroPython concept | SimpleAwait concept | Notes |
 | --- | --- | --- |
 | coroutine object | `Task<T>` | Lazy/unscheduled until awaited or scheduled |
 | `asyncio.create_task()` | `create_task()` | Explicit concurrent scheduling |
@@ -2979,5 +2979,5 @@ The following table is normative guidance for implementation behavior, not a req
 
 Key difference from Python implementations:
 
-> ArduinoAwait must achieve these semantics without a garbage-collected heap, using fixed-capacity scheduler metadata and a fixed coroutine-frame pool.
+> SimpleAwait must achieve these semantics without a garbage-collected heap, using fixed-capacity scheduler metadata and a fixed coroutine-frame pool.
 

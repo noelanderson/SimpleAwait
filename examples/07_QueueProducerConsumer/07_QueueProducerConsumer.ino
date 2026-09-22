@@ -1,4 +1,4 @@
-// ArduinoAwait — 07_QueueProducerConsumer golden example.
+// SimpleAwait — 07_QueueProducerConsumer golden example.
 //
 // A bounded, scheduler-local Queue<T,N> connects a producer and a consumer
 // coroutine. The producer co_awaits send() and suspends when the queue is full;
@@ -7,9 +7,9 @@
 // no heap. Because the consumer here is slower than the producer, the queue fills
 // and the producer naturally throttles to the consumer's rate.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 Queue<int, 8> samples;
 

@@ -1,6 +1,6 @@
 #pragma once
 
-// ArduinoAwait — Queue<T, Capacity>: bounded, scheduler-local FIFO with blocking
+// SimpleAwait — Queue<T, Capacity>: bounded, scheduler-local FIFO with blocking
 // send/receive (V1_API_CONTRACT §11, ARCHITECTURE §17).
 //
 // Data order and waiter order are both FIFO. `send()` completes immediately when a
@@ -28,7 +28,7 @@
 #include "error.h"
 #include "scheduler.h"
 
-namespace arduinoawait {
+namespace simpleawait {
 
 template <class T, size_t Capacity>
 class Queue {
@@ -52,7 +52,7 @@ public:
             r->linked_ = false;
         }
         if (send_head_ != nullptr || recv_head_ != nullptr) {
-            ARDUINOAWAIT_ON_ERROR(Error::object_destroyed_with_waiters);
+            SIMPLEAWAIT_ON_ERROR(Error::object_destroyed_with_waiters);
         }
         // Destroy any buffered payloads exactly once.
         while (count_ > 0) {
@@ -141,9 +141,9 @@ public:
                     // reachable when the default hook is [[noreturn]]. Only reachable
                     // via a foreign/nested await.
                     for (;;) {
-                        volatile unsigned aa_no_value = 0u;
-                        (void)aa_no_value;
-                        ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
+                        volatile unsigned sa_no_value = 0u;
+                        (void)sa_no_value;
+                        SIMPLEAWAIT_ON_ERROR(Error::invalid_task);
                     }
                 }
             }
@@ -359,4 +359,4 @@ private:
     ReceiveAwaiter* recv_tail_ = nullptr;
 };
 
-} // namespace arduinoawait
+} // namespace simpleawait

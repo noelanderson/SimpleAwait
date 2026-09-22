@@ -18,10 +18,10 @@
 // clock to advance within it; only a healthy, advancing clock is then allowed to
 // enter the clock-dependent delay.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using arduinoawait::detail::platform_now_us;
-using arduinoawait::detail::tick_t;
+using simpleawait::detail::platform_now_us;
+using simpleawait::detail::tick_t;
 
 static tick_t s_last = 0;
 static bool s_have_last = false;

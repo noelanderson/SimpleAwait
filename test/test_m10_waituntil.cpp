@@ -8,17 +8,17 @@
 #include <cstddef>
 
 namespace { unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Task;
-using arduinoawait::waitUntil;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Task;
+using simpleawait::waitUntil;
 
 namespace {
 bool g_pred = false;
@@ -32,7 +32,7 @@ Task<void> waiter() {
 Task<void> counter(int n) {
     for (int i = 0; i < n; ++i) {
         ++g_other;
-        co_await arduinoawait::yield();
+        co_await simpleawait::yield();
     }
 }
 } // namespace
@@ -49,8 +49,8 @@ int main() {
         while (g_done == 0 && guard++ < 10) {
             poll();
         }
-        AA_CHECK(g_done == 1);
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(g_done == 1);
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- a false predicate suspends fairly; other tasks keep running ----
@@ -63,8 +63,8 @@ int main() {
         for (int i = 0; i < 10; ++i) {
             poll();
         }
-        AA_CHECK(g_done == 0);  // still waiting: the predicate is false
-        AA_CHECK(g_other >= 5); // the concurrent task advanced (fair yielding)
+        SA_CHECK(g_done == 0);  // still waiting: the predicate is false
+        SA_CHECK(g_other >= 5); // the concurrent task advanced (fair yielding)
 
         // ---- the waiter resumes once the predicate becomes true ----
         g_pred = true;
@@ -72,15 +72,15 @@ int main() {
         while (g_done == 0 && guard++ < 10) {
             poll();
         }
-        AA_CHECK(g_done == 1);
+        SA_CHECK(g_done == 1);
 
         // Drain the counter task so the scheduler returns to idle.
         guard = 0;
         while (sch.activeTaskCount() > 0 && guard++ < 4000) {
             poll();
         }
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

@@ -1,6 +1,6 @@
 // Negative-compilation probe for the scheduler task-capacity limit (M4 M1).
 //
-// ARDUINOAWAIT_MAX_TASKS greater than the representable TaskSlot range would let
+// SIMPLEAWAIT_MAX_TASKS greater than the representable TaskSlot range would let
 // index_of() narrow a slot index and alias a handle's identity. A static_assert
 // in Scheduler must reject it at compile time rather than silently narrow. Built
 // as an EXCLUDE_FROM_ALL target and asserted to fail (with the capacity
@@ -9,11 +9,11 @@
 // TaskSlot is uint16_t, so indices 0..65535 are representable and 65537 slots is
 // one past the limit.
 
-#define ARDUINOAWAIT_MAX_TASKS 65537
+#define SIMPLEAWAIT_MAX_TASKS 65537
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-static_assert(sizeof(arduinoawait::Scheduler) > 0, "force instantiation of the capacity check");
+static_assert(sizeof(simpleawait::Scheduler) > 0, "force instantiation of the capacity check");
 
 int main() {
     return 0;

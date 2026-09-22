@@ -1,4 +1,4 @@
-# ArduinoAwait Implementation Plan
+# SimpleAwait Implementation Plan
 
 **Objective:** Deliver a small, testable V1 in gated milestones.  
 **Language floor:** C++20  
@@ -15,7 +15,7 @@ Do not implement later milestones until the current milestone's acceptance gate 
 - Arduino library layout;
 - PlatformIO metadata;
 - host CMake test target;
-- top-level public include `ArduinoAwait.h`;
+- top-level public include `SimpleAwait.h`;
 - configuration header;
 - compile-time coroutine support checks;
 - CI skeleton;
@@ -459,7 +459,7 @@ These must not be pulled into V1 merely because they are convenient to implement
 
 ## Suggested coding-agent prompt for M0-M2
 
-> Implement milestones M0 through M2 only. Follow `docs/arduinoawait/V1_API_CONTRACT.md`, `docs/arduinoawait/ARCHITECTURE.md`, `AGENTS.md`, and `docs/arduinoawait/ArduinoAwait_Implementation_Spec.md`. C++20 is the minimum language level; do not require C++23. Establish the build matrix, implement the platform `uint64_t` microsecond clock abstraction (`time_us_64()` for RP2040/RP2350, `esp_timer_get_time()` for ESP32, injected fake clock on host), then adapt the fixed variable-size TinyAwait-style coroutine frame allocator. Do not implement Task scheduling yet. Do not use global heap fallback. Add deterministic clock and allocator tests including sanitizers and allocation instrumentation. Stop after M2 acceptance criteria pass.
+> Implement milestones M0 through M2 only. Follow `docs/simpleawait/V1_API_CONTRACT.md`, `docs/simpleawait/ARCHITECTURE.md`, `AGENTS.md`, and `docs/simpleawait/SimpleAwait_Implementation_Spec.md`. C++20 is the minimum language level; do not require C++23. Establish the build matrix, implement the platform `uint64_t` microsecond clock abstraction (`time_us_64()` for RP2040/RP2350, `esp_timer_get_time()` for ESP32, injected fake clock on host), then adapt the fixed variable-size TinyAwait-style coroutine frame allocator. Do not implement Task scheduling yet. Do not use global heap fallback. Add deterministic clock and allocator tests including sanitizers and allocation instrumentation. Stop after M2 acceptance criteria pass.
 
 ---
 

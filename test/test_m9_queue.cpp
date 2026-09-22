@@ -20,17 +20,17 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
 
 namespace { unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::poll;
-using arduinoawait::Queue;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Task;
+using simpleawait::poll;
+using simpleawait::Queue;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Task;
 
 namespace {
 
@@ -120,24 +120,24 @@ int main() {
     // ---- basic trySend/tryReceive + observers ----
     {
         Queue<int, 4> q;
-        AA_CHECK(q.empty() && !q.full() && q.size() == 0 && q.capacity() == 4);
-        AA_CHECK(q.trySend(10));
-        AA_CHECK(q.trySend(20));
-        AA_CHECK(q.size() == 2 && !q.empty() && !q.full());
+        SA_CHECK(q.empty() && !q.full() && q.size() == 0 && q.capacity() == 4);
+        SA_CHECK(q.trySend(10));
+        SA_CHECK(q.trySend(20));
+        SA_CHECK(q.size() == 2 && !q.empty() && !q.full());
         int v = 0;
-        AA_CHECK(q.tryReceive(v) && v == 10);
-        AA_CHECK(q.tryReceive(v) && v == 20);
-        AA_CHECK(!q.tryReceive(v)); // empty now
-        AA_CHECK(q.empty());
+        SA_CHECK(q.tryReceive(v) && v == 10);
+        SA_CHECK(q.tryReceive(v) && v == 20);
+        SA_CHECK(!q.tryReceive(v)); // empty now
+        SA_CHECK(q.empty());
     }
 
     // ---- full trySend fails without blocking ----
     {
         Queue<int, 2> q;
-        AA_CHECK(q.trySend(1) && q.trySend(2));
-        AA_CHECK(q.full());
-        AA_CHECK(!q.trySend(3)); // full: reported, not buffered
-        AA_CHECK(q.size() == 2);
+        SA_CHECK(q.trySend(1) && q.trySend(2));
+        SA_CHECK(q.full());
+        SA_CHECK(!q.trySend(3)); // full: reported, not buffered
+        SA_CHECK(q.size() == 2);
     }
 
     // ---- empty receive suspends; a later send hands off and wakes (deferred) ----
@@ -146,55 +146,55 @@ int main() {
         int got = -1;
         spawn(intReceiver<2>(&q, &got));
         poll(); // receiver parks on the empty queue
-        AA_CHECK(got == -1);
-        AA_CHECK(q.trySend(42)); // direct hand-off to the waiting receiver
-        AA_CHECK(got == -1);     // NOT resumed inline
-        AA_CHECK(q.empty());     // handed off, never buffered
+        SA_CHECK(got == -1);
+        SA_CHECK(q.trySend(42)); // direct hand-off to the waiting receiver
+        SA_CHECK(got == -1);     // NOT resumed inline
+        SA_CHECK(q.empty());     // handed off, never buffered
         poll();                  // receiver runs
-        AA_CHECK(got == 42);
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(got == 42);
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- full send suspends; a receive frees a slot, admits the sender (deferred) ----
     {
         Queue<int, 2> q;
-        AA_CHECK(q.trySend(1) && q.trySend(2)); // full
+        SA_CHECK(q.trySend(1) && q.trySend(2)); // full
         int sphase = -1;
         spawn(intSender<2>(&q, 3, &sphase));
         poll(); // sender parks (full), value 3 held on its frame
-        AA_CHECK(sphase == -1 && q.full());
+        SA_CHECK(sphase == -1 && q.full());
         int v = 0;
-        AA_CHECK(q.tryReceive(v) && v == 1); // frees a slot -> admit sender(3)
-        AA_CHECK(sphase == -1);              // sender NOT resumed inline
-        AA_CHECK(q.full());                  // slot refilled with the sender's value
+        SA_CHECK(q.tryReceive(v) && v == 1); // frees a slot -> admit sender(3)
+        SA_CHECK(sphase == -1);              // sender NOT resumed inline
+        SA_CHECK(q.full());                  // slot refilled with the sender's value
         poll();                              // sender completes
-        AA_CHECK(sphase == 3);
-        AA_CHECK(q.tryReceive(v) && v == 2); // FIFO: 2 before 3
-        AA_CHECK(q.tryReceive(v) && v == 3);
-        AA_CHECK(q.empty() && sch.activeTaskCount() == 0);
+        SA_CHECK(sphase == 3);
+        SA_CHECK(q.tryReceive(v) && v == 2); // FIFO: 2 before 3
+        SA_CHECK(q.tryReceive(v) && v == 3);
+        SA_CHECK(q.empty() && sch.activeTaskCount() == 0);
     }
 
     // ---- FIFO sender waiter order ----
     {
         Queue<int, 1> q;
-        AA_CHECK(q.trySend(100)); // full (capacity 1)
+        SA_CHECK(q.trySend(100)); // full (capacity 1)
         int pa = -1, pb = -1, pc = -1;
         spawn(intSender<1>(&q, 101, &pa));
         spawn(intSender<1>(&q, 102, &pb));
         spawn(intSender<1>(&q, 103, &pc));
         poll(); // all three park in order
         int v = 0;
-        AA_CHECK(q.tryReceive(v) && v == 100); // admit oldest sender (101)
+        SA_CHECK(q.tryReceive(v) && v == 100); // admit oldest sender (101)
         poll();
-        AA_CHECK(pa == 101 && pb == -1 && pc == -1);
-        AA_CHECK(q.tryReceive(v) && v == 101);
+        SA_CHECK(pa == 101 && pb == -1 && pc == -1);
+        SA_CHECK(q.tryReceive(v) && v == 101);
         poll();
-        AA_CHECK(pb == 102 && pc == -1);
-        AA_CHECK(q.tryReceive(v) && v == 102);
+        SA_CHECK(pb == 102 && pc == -1);
+        SA_CHECK(q.tryReceive(v) && v == 102);
         poll();
-        AA_CHECK(pc == 103);
-        AA_CHECK(q.tryReceive(v) && v == 103);
-        AA_CHECK(q.empty() && sch.activeTaskCount() == 0);
+        SA_CHECK(pc == 103);
+        SA_CHECK(q.tryReceive(v) && v == 103);
+        SA_CHECK(q.empty() && sch.activeTaskCount() == 0);
     }
 
     // ---- FIFO receiver waiter order ----
@@ -205,14 +205,14 @@ int main() {
         spawn(intReceiver<2>(&q, &rb));
         spawn(intReceiver<2>(&q, &rc));
         poll(); // all three park in order
-        AA_CHECK(q.trySend(1)); // -> oldest receiver
-        AA_CHECK(q.trySend(2)); // -> next receiver
+        SA_CHECK(q.trySend(1)); // -> oldest receiver
+        SA_CHECK(q.trySend(2)); // -> next receiver
         poll();
-        AA_CHECK(ra == 1 && rb == 2 && rc == -1);
-        AA_CHECK(q.trySend(3)); // -> last receiver
+        SA_CHECK(ra == 1 && rb == 2 && rc == -1);
+        SA_CHECK(q.trySend(3)); // -> last receiver
         poll();
-        AA_CHECK(rc == 3);
-        AA_CHECK(q.empty() && sch.activeTaskCount() == 0);
+        SA_CHECK(rc == 3);
+        SA_CHECK(q.empty() && sch.activeTaskCount() == 0);
     }
 
     // ---- ring index wrapping ----
@@ -220,17 +220,17 @@ int main() {
         Queue<int, 3> q;
         int v = 0;
         for (int i = 0; i < 10; ++i) { // wraps several times
-            AA_CHECK(q.trySend(i));
-            AA_CHECK(q.tryReceive(v) && v == i);
+            SA_CHECK(q.trySend(i));
+            SA_CHECK(q.tryReceive(v) && v == i);
         }
-        AA_CHECK(q.empty());
-        AA_CHECK(q.trySend(1) && q.trySend(2));
-        AA_CHECK(q.tryReceive(v) && v == 1);
-        AA_CHECK(q.trySend(3) && q.trySend(4)); // tail wraps past the end
-        AA_CHECK(q.tryReceive(v) && v == 2);
-        AA_CHECK(q.tryReceive(v) && v == 3);
-        AA_CHECK(q.tryReceive(v) && v == 4);
-        AA_CHECK(q.empty());
+        SA_CHECK(q.empty());
+        SA_CHECK(q.trySend(1) && q.trySend(2));
+        SA_CHECK(q.tryReceive(v) && v == 1);
+        SA_CHECK(q.trySend(3) && q.trySend(4)); // tail wraps past the end
+        SA_CHECK(q.tryReceive(v) && v == 2);
+        SA_CHECK(q.tryReceive(v) && v == 3);
+        SA_CHECK(q.tryReceive(v) && v == 4);
+        SA_CHECK(q.empty());
     }
 
     // ---- long producer/consumer stress over a small queue ----
@@ -244,20 +244,20 @@ int main() {
         while (sch.activeTaskCount() > 0 && guard++ < 200000) {
             poll();
         }
-        AA_CHECK(sch.activeTaskCount() == 0);
-        AA_CHECK(sum == static_cast<long>(N) * (N - 1) / 2); // 0+1+...+(N-1)
-        AA_CHECK(q.empty());
+        SA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(sum == static_cast<long>(N) * (N - 1) / 2); // 0+1+...+(N-1)
+        SA_CHECK(q.empty());
     }
 
     // The trivial-payload queue mechanics allocated nothing on the global heap.
-    AA_CHECK(g_new_calls == newAtStart);
+    SA_CHECK(g_new_calls == newAtStart);
 
     // ---- move-only payload (unique_ptr): try and await paths ----
     {
         Queue<std::unique_ptr<int>, 2> q;
-        AA_CHECK(q.trySend(std::make_unique<int>(7)));
+        SA_CHECK(q.trySend(std::make_unique<int>(7)));
         std::unique_ptr<int> p;
-        AA_CHECK(q.tryReceive(p) && p && *p == 7);
+        SA_CHECK(q.tryReceive(p) && p && *p == 7);
     }
     {
         Queue<std::unique_ptr<int>, 1> q;
@@ -267,8 +267,8 @@ int main() {
         spawn(upProducer(&q, 9));    // hands the moved value to the receiver
         poll();
         poll();
-        AA_CHECK(got == 9);
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(got == 9);
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- non-default-constructible payload via coroutine receive ----
@@ -277,38 +277,38 @@ int main() {
         int got = -1;
         spawn(ndcConsumer(&q, &got));
         poll(); // parks (empty)
-        AA_CHECK(q.trySend(NoDefault{55}));
+        SA_CHECK(q.trySend(NoDefault{55}));
         poll();
-        AA_CHECK(got == 55);
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(got == 55);
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- copy-only payload (deleted move ctor): every delivery path copies ----
     {
         // immediate buffer, via both trySend overloads, drained by tryReceive
         Queue<CopyOnly, 2> q;
-        AA_CHECK(q.trySend(CopyOnly{11})); // trySend(T&&) copies (no move ctor)
+        SA_CHECK(q.trySend(CopyOnly{11})); // trySend(T&&) copies (no move ctor)
         const CopyOnly lv{12};
-        AA_CHECK(q.trySend(lv));           // trySend(const T&) copies
+        SA_CHECK(q.trySend(lv));           // trySend(const T&) copies
         CopyOnly out{0};
-        AA_CHECK(q.tryReceive(out) && out.x == 11);
-        AA_CHECK(q.tryReceive(out) && out.x == 12);
-        AA_CHECK(q.empty());
+        SA_CHECK(q.tryReceive(out) && out.x == 11);
+        SA_CHECK(q.tryReceive(out) && out.x == 12);
+        SA_CHECK(q.empty());
     }
     {
         // parked-sender path: co_await send on a full queue, admitted by copy
         Queue<CopyOnly, 1> q;
-        AA_CHECK(q.trySend(CopyOnly{20})); // full
+        SA_CHECK(q.trySend(CopyOnly{20})); // full
         int sp = -1;
         spawn(copyOnlySender(&q, 21, &sp));
         poll(); // sender parks holding its copied value
-        AA_CHECK(sp == -1 && q.full());
+        SA_CHECK(sp == -1 && q.full());
         CopyOnly out{0};
-        AA_CHECK(q.tryReceive(out) && out.x == 20); // admits the sender (copy to tail)
+        SA_CHECK(q.tryReceive(out) && out.x == 20); // admits the sender (copy to tail)
         poll();
-        AA_CHECK(sp == 21);
-        AA_CHECK(q.tryReceive(out) && out.x == 21);
-        AA_CHECK(q.empty() && sch.activeTaskCount() == 0);
+        SA_CHECK(sp == 21);
+        SA_CHECK(q.tryReceive(out) && out.x == 21);
+        SA_CHECK(q.empty() && sch.activeTaskCount() == 0);
     }
     {
         // direct-receiver path: a parked receiver, then trySend hands off by copy
@@ -316,26 +316,26 @@ int main() {
         int got = -1;
         spawn(copyOnlyReceiver(&q, &got));
         poll(); // receiver parks (empty)
-        AA_CHECK(q.trySend(CopyOnly{30})); // direct copy hand-off to the receiver
+        SA_CHECK(q.trySend(CopyOnly{30})); // direct copy hand-off to the receiver
         poll();
-        AA_CHECK(got == 30);
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(got == 30);
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- exactly-once construction/destruction, including a non-empty destroy ----
-    AA_CHECK(Counted::live == 0);
+    SA_CHECK(Counted::live == 0);
     {
         Queue<Counted, 3> q;
-        AA_CHECK(q.trySend(Counted{1}));
-        AA_CHECK(q.trySend(Counted{2}));
-        AA_CHECK(q.trySend(Counted{3}));
+        SA_CHECK(q.trySend(Counted{1}));
+        SA_CHECK(q.trySend(Counted{2}));
+        SA_CHECK(q.trySend(Counted{3}));
         {
             Counted out{0};
-            AA_CHECK(q.tryReceive(out) && out.x == 1);
+            SA_CHECK(q.tryReceive(out) && out.x == 1);
         } // out destroyed
         // q still holds 2 and 3; ~Queue must destroy exactly those.
     }
-    AA_CHECK(Counted::live == 0); // no leak, no double-destroy
+    SA_CHECK(Counted::live == 0); // no leak, no double-destroy
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

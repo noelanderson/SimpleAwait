@@ -1,4 +1,4 @@
-// ArduinoAwait — 08_WaitUntil golden example.
+// SimpleAwait — 08_WaitUntil golden example.
 //
 // waitUntil(predicate) suspends a task at fair yield points until a condition holds
 // — a readable, cooperative alternative to a hand-written polling loop. Here a
@@ -7,9 +7,9 @@
 // never blocks the scheduler. waitUntil is a pure composition over yield(), not a
 // new primitive.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 static int g_sensor = 0;
 

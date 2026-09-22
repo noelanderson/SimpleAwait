@@ -1,6 +1,6 @@
 #pragma once
 
-// ArduinoAwait — Event: scheduler-local, manual-reset, multi-waiter (V1 §9).
+// SimpleAwait — Event: scheduler-local, manual-reset, multi-waiter (V1 §9).
 //
 // wait() on a set Event completes without suspension; wait() on a clear Event
 // appends the task to the Event's FIFO waiter queue. set() latches the Event and
@@ -16,7 +16,7 @@
 #include "error.h"
 #include "scheduler.h"
 
-namespace arduinoawait {
+namespace simpleawait {
 
 class Event {
 public:
@@ -26,7 +26,7 @@ public:
 
     ~Event() {
         if (!waiters_.empty()) {
-            ARDUINOAWAIT_ON_ERROR(Error::object_destroyed_with_waiters);
+            SIMPLEAWAIT_ON_ERROR(Error::object_destroyed_with_waiters);
         }
     }
 
@@ -65,4 +65,4 @@ private:
     Scheduler::WaitQueue waiters_;
 };
 
-} // namespace arduinoawait
+} // namespace simpleawait

@@ -9,21 +9,21 @@
 #include <cstdint>
 
 namespace { int g_last_error = -1; unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::create_task;
-using arduinoawait::Error;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Task;
-using arduinoawait::TaskHandle;
-using arduinoawait::ThreadSafeFlag;
+using simpleawait::create_task;
+using simpleawait::Error;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Task;
+using simpleawait::TaskHandle;
+using simpleawait::ThreadSafeFlag;
 
 namespace {
 int g_a_phase = 0;
@@ -84,16 +84,16 @@ int main() {
         g_last_error = -1;
         spawn(waiterA(&flag));
         poll(); // A parks as the single waiter
-        AA_CHECK(g_a_phase == 1);
+        SA_CHECK(g_a_phase == 1);
         spawn(waiterB(&flag)); // B attempts to wait on the same flag
         poll(); // B is rejected without suspending
-        AA_CHECK(g_last_error == static_cast<int>(Error::multiple_flag_waiters));
-        AA_CHECK(g_b_after == 1); // B continued (did not suspend or hang)
-        AA_CHECK(g_a_phase == 1); // A is still the sole waiter
+        SA_CHECK(g_last_error == static_cast<int>(Error::multiple_flag_waiters));
+        SA_CHECK(g_b_after == 1); // B continued (did not suspend or hang)
+        SA_CHECK(g_a_phase == 1); // A is still the sole waiter
         flag.set();
         poll();
-        AA_CHECK(g_a_phase == 2); // A woken by the signal
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(g_a_phase == 2); // A woken by the signal
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- a foreign coroutine waiting outside poll() is rejected, not stranded ----
@@ -103,9 +103,9 @@ int main() {
         g_last_error = -1;
         g_foreign_after = 0;
         foreignWaiter(); // eager, outside poll()
-        AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
-        AA_CHECK(g_foreign_after == 1); // caller resumed, not stranded
-        AA_CHECK(!flag.isSet());
+        SA_CHECK(g_last_error == static_cast<int>(Error::invalid_task));
+        SA_CHECK(g_foreign_after == 1); // caller resumed, not stranded
+        SA_CHECK(!flag.isSet());
         // flag has no waiter (rejected before arming) -> its destructor is clean
     }
 
@@ -122,18 +122,18 @@ int main() {
         g_nested_flag = &flag;
         spawn(waiterA(&flag));
         poll(); // A parks as the single waiter
-        AA_CHECK(g_a_phase == 1);
+        SA_CHECK(g_a_phase == 1);
         g_last_error = -1;
         spawn(outerLaunch()); // foreign nested await while A is parked + a task runs
         poll();
-        AA_CHECK(g_last_error == static_cast<int>(Error::invalid_task)); // not multiple_flag_waiters
-        AA_CHECK(g_nested_after == 1); // foreign continuation ran (not stranded)
-        AA_CHECK(g_outer_after == 1);  // outer task completed
-        AA_CHECK(g_a_phase == 1);      // A still the sole waiter, untouched
+        SA_CHECK(g_last_error == static_cast<int>(Error::invalid_task)); // not multiple_flag_waiters
+        SA_CHECK(g_nested_after == 1); // foreign continuation ran (not stranded)
+        SA_CHECK(g_outer_after == 1);  // outer task completed
+        SA_CHECK(g_a_phase == 1);      // A still the sole waiter, untouched
         flag.set();
         poll();
-        AA_CHECK(g_a_phase == 2); // A still wakes normally afterward
-        AA_CHECK(sch.activeTaskCount() == 0);
+        SA_CHECK(g_a_phase == 2); // A still wakes normally afterward
+        SA_CHECK(sch.activeTaskCount() == 0);
     }
 
     // ---- destroying a flag with a parked waiter is a deterministic error ----
@@ -144,7 +144,7 @@ int main() {
         poll(); // the task parks on `doomed`
         // `doomed` is destroyed here WITH a waiter still parked on it
     }
-    AA_CHECK(g_last_error == static_cast<int>(Error::object_destroyed_with_waiters));
+    SA_CHECK(g_last_error == static_cast<int>(Error::object_destroyed_with_waiters));
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

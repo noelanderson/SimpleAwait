@@ -9,12 +9,12 @@
 // Uses only the public API. Developer validation sketch; not run by host CI, but
 // CI compiles it on every first-class target.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using arduinoawait::delay_ms;
-using arduinoawait::poll;
-using arduinoawait::spawn;
-using arduinoawait::Task;
+using simpleawait::delay_ms;
+using simpleawait::poll;
+using simpleawait::spawn;
+using simpleawait::Task;
 
 static int g_order = 0;
 static unsigned long g_heartbeats = 0;

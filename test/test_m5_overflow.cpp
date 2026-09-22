@@ -13,20 +13,20 @@ int g_last_error = -1;
 unsigned long long g_now = 0;
 int g_after = 0;
 }
-#define ARDUINOAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::create_task;
-using arduinoawait::delay_us;
-using arduinoawait::Error;
-using arduinoawait::poll;
-using arduinoawait::scheduler;
-using arduinoawait::Task;
-using arduinoawait::TaskHandle;
+using simpleawait::create_task;
+using simpleawait::delay_us;
+using simpleawait::Error;
+using simpleawait::poll;
+using simpleawait::scheduler;
+using simpleawait::Task;
+using simpleawait::TaskHandle;
 
 namespace {
 Task<void> overflower() {
@@ -49,13 +49,13 @@ int main() {
     g_after = 0;
     TaskHandle h = create_task(overflower());
     poll(); // arm timer -> overflow -> hook + requeue (fair fallback)
-    AA_CHECK(g_last_error == static_cast<int>(Error::deadline_overflow));
-    AA_CHECK(!h.done());       // requeued, not completed this pass
-    AA_CHECK(g_after == 0);
+    SA_CHECK(g_last_error == static_cast<int>(Error::deadline_overflow));
+    SA_CHECK(!h.done());       // requeued, not completed this pass
+    SA_CHECK(g_after == 0);
     poll(); // requeued task resumes past the co_await and completes
-    AA_CHECK(h.done());
-    AA_CHECK(g_after == 1);
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(h.done());
+    SA_CHECK(g_after == 1);
+    SA_CHECK(sch.activeTaskCount() == 0);
 
     // ---- a non-overflowing delay arms normally and raises no error ----
     g_now = 1000ULL;
@@ -63,13 +63,13 @@ int main() {
     g_after = 0;
     TaskHandle h2 = create_task(okDelay());
     poll(); // arms a 100 us timer at deadline 1100
-    AA_CHECK(g_last_error == -1); // no error
-    AA_CHECK(!h2.done());
+    SA_CHECK(g_last_error == -1); // no error
+    SA_CHECK(!h2.done());
     g_now = 1100ULL;
     poll(); // due -> wakes -> completes
-    AA_CHECK(h2.done());
-    AA_CHECK(g_after == 1);
-    AA_CHECK(sch.activeTaskCount() == 0);
+    SA_CHECK(h2.done());
+    SA_CHECK(g_after == 1);
+    SA_CHECK(sch.activeTaskCount() == 0);
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

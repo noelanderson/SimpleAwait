@@ -1,13 +1,13 @@
-// ArduinoAwait — 05_Event golden example.
+// SimpleAwait — 05_Event golden example.
 //
 // A manual-reset Event as a one-shot "start line": several runner tasks all
 // co_await the same Event and suspend; a starter task releases them together with
 // a single set(), which wakes every waiter in FIFO order (they then run on the
 // next poll pass). Event is scheduler-local and cooperative — no locks, no ISR.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using namespace arduinoawait;
+using namespace simpleawait;
 
 Event startLine;
 

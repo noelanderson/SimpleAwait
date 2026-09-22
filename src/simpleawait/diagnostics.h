@@ -1,8 +1,8 @@
 #pragma once
 
-// ArduinoAwait — diagnostics (V1_API_CONTRACT §14).
+// SimpleAwait — diagnostics (V1_API_CONTRACT §14).
 //
-// Compiled ONLY when ARDUINOAWAIT_ENABLE_DIAGNOSTICS is set to 1. In a default
+// Compiled ONLY when SIMPLEAWAIT_ENABLE_DIAGNOSTICS is set to 1. In a default
 // build this header expands to nothing AND the scheduler compiles in no counter
 // state or update path (the active-task high-water mark and this whole surface are
 // under the same guard), so the diagnostics feature adds no code and no data. When
@@ -11,14 +11,14 @@
 
 #include "config.h"
 
-#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
+#if SIMPLEAWAIT_ENABLE_DIAGNOSTICS
 
 #include <cstddef>
 
 #include "detail/global_frame_pool.h"
 #include "scheduler.h"
 
-namespace arduinoawait {
+namespace simpleawait {
 
 struct Stats {
     size_t activeTasks;         // tasks currently owned by the scheduler
@@ -63,6 +63,6 @@ inline SchedulerCounters scheduler_counters() noexcept {
     return s;
 }
 
-} // namespace arduinoawait
+} // namespace simpleawait
 
-#endif // ARDUINOAWAIT_ENABLE_DIAGNOSTICS
+#endif // SIMPLEAWAIT_ENABLE_DIAGNOSTICS

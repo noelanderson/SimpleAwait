@@ -4,9 +4,9 @@
 // RP2350/ESP32 core and no critical-section override) there is no PORTABLE way to
 // save and restore the interrupt-enable state, and the scheduler's external-signal
 // poll step (detail::poll_external_signals, run by poll() every pass) needs a
-// usable critical section. So the umbrella <ArduinoAwait.h> must fail to compile
+// usable critical section. So the umbrella <SimpleAwait.h> must fail to compile
 // deterministically on include with a directive to define
-// ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE or use a first-class target — rather than
+// SIMPLEAWAIT_CRITICAL_SECTION_OVERRIDE or use a first-class target — rather than
 // emitting ISR-unsafe or silently-incorrect code.
 //
 // This probe defines ARDUINO (with a fake clock override so the clock backend does
@@ -16,9 +16,9 @@
 // run_negcompile_test.cmake.
 
 #define ARDUINO 100
-#define ARDUINOAWAIT_CLOCK_NOW_US() (0ull)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (0ull)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
 int main() {
     return 0;

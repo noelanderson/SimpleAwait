@@ -16,12 +16,12 @@
 // A returning, NON-volatile hook (the style the forward-progress rule can otherwise
 // let the optimizer defeat).
 namespace { int g_last_error = -1; unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_ON_ERROR(error) (g_last_error = static_cast<int>(error))
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using arduinoawait::Queue;
+using simpleawait::Queue;
 
 namespace {
 struct NoDefault {

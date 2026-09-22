@@ -10,24 +10,24 @@
 #include <cstddef>
 #include <cstdint>
 
-#define ARDUINOAWAIT_ENABLE_DIAGNOSTICS 1
+#define SIMPLEAWAIT_ENABLE_DIAGNOSTICS 1
 namespace { unsigned long long g_now = 0; }
-#define ARDUINOAWAIT_CLOCK_NOW_US() (g_now)
+#define SIMPLEAWAIT_CLOCK_NOW_US() (g_now)
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-#include "aa_test.h"
+#include "sa_test.h"
 
-using arduinoawait::delay_us;
-using arduinoawait::Event;
-using arduinoawait::poll;
-using arduinoawait::Queue;
-using arduinoawait::scheduler;
-using arduinoawait::spawn;
-using arduinoawait::Stats;
-using arduinoawait::stats;
-using arduinoawait::Task;
-using arduinoawait::ThreadSafeFlag;
+using simpleawait::delay_us;
+using simpleawait::Event;
+using simpleawait::poll;
+using simpleawait::Queue;
+using simpleawait::scheduler;
+using simpleawait::spawn;
+using simpleawait::Stats;
+using simpleawait::stats;
+using simpleawait::Task;
+using simpleawait::ThreadSafeFlag;
 
 namespace {
 
@@ -39,9 +39,9 @@ void drainAndCheckIdle() {
         poll();
     }
     const Stats s = stats();
-    AA_CHECK(s.activeTasks == 0);
-    AA_CHECK(s.frameBytesUsed == 0);
-    AA_CHECK(s.allocationFailures == 0);
+    SA_CHECK(s.activeTasks == 0);
+    SA_CHECK(s.frameBytesUsed == 0);
+    SA_CHECK(s.allocationFailures == 0);
 }
 
 int g_counter = 0;
@@ -64,7 +64,7 @@ Task<void> sized() {
     volatile char buf[N];
     buf[0] = static_cast<char>(N);
     (void)buf[0];
-    co_await arduinoawait::yield();
+    co_await simpleawait::yield();
 }
 
 Task<void> napper(uint64_t us) {
@@ -134,7 +134,7 @@ int main() {
             poll();
         }
     }
-    AA_CHECK(g_counter >= 100000);
+    SA_CHECK(g_counter >= 100000);
     drainAndCheckIdle();
 
     // ---- repeated deep child nesting ----
@@ -189,7 +189,7 @@ int main() {
                 poll();
             }
             ev.clear();
-            AA_CHECK(woken == 16);
+            SA_CHECK(woken == 16);
         }
     }
     drainAndCheckIdle();
@@ -209,7 +209,7 @@ int main() {
         while (sch.activeTaskCount() > 0 && guard++ < 100) {
             poll();
         }
-        AA_CHECK(wakes == iters);
+        SA_CHECK(wakes == iters);
     }
     drainAndCheckIdle();
 
@@ -221,23 +221,23 @@ int main() {
         spawn(qProducer(&q, n));
         spawn(qConsumer(&q, n, &sum));
         drainAndCheckIdle();
-        AA_CHECK(sum == static_cast<long long>(n) * (n - 1) / 2);
-        AA_CHECK(q.empty());
+        SA_CHECK(sum == static_cast<long long>(n) * (n - 1) / 2);
+        SA_CHECK(q.empty());
     }
 
     // ---- Queue churn with a lifetime-counted payload (no double destroy) ----
     {
-        AA_CHECK(Counted::live == 0);
+        SA_CHECK(Counted::live == 0);
         Queue<Counted, 4> q;
         long long sum = 0;
         const int n = 4000;
         spawn(countedProducer(&q, n));
         spawn(countedConsumer(&q, n, &sum));
         drainAndCheckIdle();
-        AA_CHECK(sum == static_cast<long long>(n) * (n - 1) / 2);
-        AA_CHECK(q.empty());
+        SA_CHECK(sum == static_cast<long long>(n) * (n - 1) / 2);
+        SA_CHECK(q.empty());
     }
-    AA_CHECK(Counted::live == 0); // every payload destroyed exactly once
+    SA_CHECK(Counted::live == 0); // every payload destroyed exactly once
 
-    AA_RUN_TESTS();
+    SA_RUN_TESTS();
 }

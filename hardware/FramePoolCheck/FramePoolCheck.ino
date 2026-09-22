@@ -9,9 +9,9 @@
 // Developer validation sketch; reaches into detail:: and is not part of the
 // public API. Not run by host CI, but CI compiles it on every target.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using arduinoawait::detail::FramePool;
+using simpleawait::detail::FramePool;
 
 static FramePool<2048> pool;
 

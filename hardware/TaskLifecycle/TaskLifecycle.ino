@@ -9,10 +9,10 @@
 // Developer validation sketch; reaches into detail:: and is not part of the
 // public API. Not run by host CI, but CI compiles it on every target.
 
-#include <ArduinoAwait.h>
+#include <SimpleAwait.h>
 
-using arduinoawait::Task;
-using arduinoawait::detail::frame_pool;
+using simpleawait::Task;
+using simpleawait::detail::frame_pool;
 
 // A lazy coroutine: its body never runs here (the Task is never scheduled), so
 // the flag must stay false — proving creation alone does not execute the body.

@@ -42,37 +42,21 @@ The implementation must check coroutine feature availability and fail with a cle
 
 ## 3. High-level component model
 
-```text
-Application code
-     |
-     | Task<void>, create_task(), spawn(), co_await
-     v
-+---------------------------+
-|        Scheduler          |
-|                           |
-|  ready FIFO               |
-|  timer wait set           |
-|  current task             |
-|  task registry/slots      |
-|  external-signal pending  |
-+------+-------------+------+
-       |             |
-       |             +--------------------+
-       |                                  |
-       v                                  v
- Scheduler-local waits              Cross-context signal
- Event / Queue / child              ThreadSafeFlag
-       |                                  |
-       +----------------+-----------------+
-                        |
-                        v
-                coroutine_handle.resume()
+```mermaid
+flowchart TD
+    App["Application code<br/>Task, create_task(), spawn(), co_await"]
+    Sched["Scheduler<br/>ready FIFO · timer wait set · current task<br/>task registry / slots · external-signal pending"]
+    Local["Scheduler-local waits<br/>Event · Queue · child await"]
+    Flag["Cross-context signal<br/>ThreadSafeFlag"]
+    Resume["coroutine_handle.resume()<br/>(always in scheduler context)"]
+    Plat["Platform layer<br/>64-bit monotonic µs clock ·<br/>short critical-section primitives ·<br/>target / compiler feature detection"]
 
-Platform layer
-   |
-   +-- clock: uint64_t monotonic microseconds
-   +-- short critical-section primitives
-   +-- target/compiler feature detection
+    App --> Sched
+    Sched --> Local
+    Sched --> Flag
+    Local --> Resume
+    Flag --> Resume
+    Resume --> Plat
 ```
 
 The scheduler never directly knows about GPIO, UART, SPI, I2C, PIO, USB, Wi-Fi, displays, or sensors. Those are higher-level awaitables built on the core primitives.
@@ -132,48 +116,43 @@ This rule intentionally sacrifices a small optimization to simplify lifetime, fa
 
 ## 5. Task state machine
 
-Recommended internal states:
+Scheduler slot states, as implemented by the scheduler-private `Scheduler::State`
+(`src/simpleawait/scheduler.h`):
 
 ```cpp
-enum class TaskState : uint8_t {
-    created,
-    ready,
-    running,
-    waiting_timer,
-    waiting_local,
-    waiting_child,
-    completed
+enum class State : uint8_t {
+    free,           // slot unused
+    ready,          // in the ready FIFO
+    running,        // currently resumed
+    waiting_timer,  // parked on a delay deadline
+    waiting_local,  // parked on an Event or Queue
+    waiting_child,  // parent parked on an awaited child
+    suspended,      // parked on a ThreadSafeFlag (external wake)
+    completed       // co_return'd; slot awaiting reclaim
 };
 ```
 
-Canonical transition graph:
+Transition graph (an unscheduled `Task` frame exists lazily before a slot adopts it):
 
-```text
-                    create_task()/spawn()
-          +-----------------------------------+
-          |                                   v
-      +---------+                         +-------+
-      | created | -- co_await as child -->| ready |
-      +---------+                         +---+---+
-                                              |
-                                           resume
-                                              |
-                                              v
-                                          +-------+
-                                          |running|
-                                          +---+---+
-                                              |
-              +-------------------------------+-----------------------------+
-              |                |               |              |             |
-            yield          delay>0          Event/Queue      child        return
-              |                |               |              |             |
-              v                v               v              v             v
-           ready        waiting_timer     waiting_local  waiting_child  completed
-              ^                |               |              |             |
-              |                +------- due ---+---- wake -----+             |
-              |                                                               |
-              +----------------------- enqueue parent/work --------------------+
+```mermaid
+stateDiagram-v2
+    [*] --> free
+    free --> ready: create_task() / spawn() / adopt child
+    ready --> running: poll() resumes it
+    running --> ready: yield() / delay(0)
+    running --> waiting_timer: delay(d>0)
+    running --> waiting_local: co_await Event / Queue
+    running --> waiting_child: co_await child Task
+    running --> suspended: co_await ThreadSafeFlag
+    running --> completed: co_return
+    waiting_timer --> ready: deadline due
+    waiting_local --> ready: Event set / Queue transfer
+    waiting_child --> ready: child completed
+    suspended --> ready: flag signal delivered
+    completed --> free: slot reclaimed (generation++)
 ```
+
+Newly readied tasks run on a later `poll()` pass, never inline.
 
 Illegal transitions are programming/runtime errors in diagnostic builds.
 
@@ -249,7 +228,7 @@ struct TaskControl {
 };
 ```
 
-This is conceptual, not mandatory byte layout. The implementation may place some fields in `promise_type`, but it must avoid duplicating ownership/state information unnecessarily.
+This is conceptual, not mandatory byte layout; the implementation is `Scheduler::Slot` in `src/simpleawait/scheduler.h` (fields `handle`, `next`, `parent`, `deadline_us`, `generation`, `state`). The implementation may place some fields in `promise_type`, but it must avoid duplicating ownership/state information unnecessarily.
 
 A task must not need separately heap-allocated scheduler nodes.
 
@@ -461,9 +440,12 @@ One boundary case is defined: destroying a scheduler-local primitive that OUTLIV
 
 State:
 
-```text
-clear
-set
+```mermaid
+stateDiagram-v2
+    [*] --> clear
+    clear --> set: set() wakes all waiters (FIFO)
+    set --> clear: clear()
+    set --> set: set() (already set)
 ```
 
 Behavior:
@@ -493,11 +475,14 @@ Semantics:
 - a second simultaneous waiter is a deterministic programming error;
 - `set()` never resumes coroutine code directly.
 
-Conceptual state:
+Signal lifecycle (at most one waiter; `set()` never resumes coroutine code — the scheduler delivers the wake on the next `poll()`):
 
-```text
-signaled: false/true
-waiter: none/TaskControl*
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> pending: set() (any allowed external context)
+    pending --> pending: set() (coalesces)
+    pending --> idle: wait() consumes signal (auto-reset)
 ```
 
 ### 16.1 External pending strategy

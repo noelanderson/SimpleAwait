@@ -9,7 +9,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <utility>
 
 #define SIMPLEAWAIT_ENABLE_DIAGNOSTICS 1
@@ -248,8 +247,6 @@ int main() {
     }
     // The large frame must dominate a single blocker frame; otherwise a lone
     // freed blocker block could satisfy it without any coalescing at all.
-    std::fprintf(stderr, "DIAG blockerFrameSize=%zu bigFrameSize=%zu poolFree=%zu\n",
-                 blockerFrameSize, bigFrameSize, stats().frameBytesFree);
     SA_CHECK(bigFrameSize > blockerFrameSize);
     const size_t tailThreshold = bigFrameSize - 1;
 

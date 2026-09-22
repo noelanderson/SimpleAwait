@@ -41,8 +41,8 @@ void setup() {
     spawn(worker("worker B", 1200));
 }
 
-void loop() { 
-    poll(); 
+void loop() {
+    poll();
 }
 ```
 
@@ -97,18 +97,18 @@ entry links its contract section (API) and architecture section (design).
 
 - **Tasks.**
 
-  `Task<void>` is a lazy, move-only coroutine whose frame lives in the fixed pool 
+  `Task<void>` is a lazy, move-only coroutine whose frame lives in the fixed pool
   and whose body runs only inside `poll()`.
 
-  `spawn(task())` schedules the `Task` detached; 
+  `spawn(task())` schedules the `Task` detached;
 
-  `create_task(task())` schedules `Task` and also returns a  generation-checked 
-  `TaskHandle` whose `done()` stays observable until the slot is reused. 
+  `create_task(task())` schedules `Task` and also returns a  generation-checked
+  `TaskHandle` whose `done()` stays observable until the slot is reused.
 
   Awaiting a child (`co_await child()`) runs it to completion and
   resumes the parent on a later pass; `current_task()` identifies the running
   task.
-  
+
   *Spec: API [§4 Task](docs/simpleawait/V1_API_CONTRACT.md#4-task),
   [§5 TaskHandle](docs/simpleawait/V1_API_CONTRACT.md#5-taskhandle),
   [§6 scheduling](docs/simpleawait/V1_API_CONTRACT.md#6-task-scheduling); design
@@ -120,7 +120,7 @@ entry links its contract section (API) and architecture section (design).
 
   `co_await delay_ms(n)` / `delay_us(n)` / `delay(n)` suspend on the 64-bit microsecond
   timebase, and even a zero duration re-queues for a later pass instead of busy-spinning.
-  
+
   *Spec: API
   [§8 delay and yield](docs/simpleawait/V1_API_CONTRACT.md#8-delay-and-yield);
   design [§11 timer architecture](docs/simpleawait/ARCHITECTURE.md#11-timer-architecture).*
@@ -165,12 +165,12 @@ entry links its contract section (API) and architecture section (design).
   *Spec:
   API [§10 ThreadSafeFlag](docs/simpleawait/V1_API_CONTRACT.md#10-threadsafeflag);
   design [§16 ThreadSafeFlag](docs/simpleawait/ARCHITECTURE.md#16-threadsafeflag).*
-- **Diagnostics.** 
+- **Diagnostics.**
 
   With `SIMPLEAWAIT_ENABLE_DIAGNOSTICS=1`, `stats()` returns an
   allocation-free `Stats` snapshot (active/peak/ready/waiting-timer task counts
   and frame-pool bytes used/peak/free plus allocation failures).
-  
+
   *Spec: API
   [§14 Diagnostics](docs/simpleawait/V1_API_CONTRACT.md#14-diagnostics); design
   [§25 Diagnostics](docs/simpleawait/ARCHITECTURE.md#25-diagnostics).*

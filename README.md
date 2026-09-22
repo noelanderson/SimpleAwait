@@ -184,8 +184,7 @@ The normative specification lives under [`docs/simpleawait/`](docs/simpleawait/)
 
 The packaging metadata (`library.properties`, `library.json`) declares
 `SimpleAwait` version `1.0.0`, authored and maintained by **Noel Anderson**,
-under the [MIT](LICENSE) license. Update the `url` / `repository` fields if the
-canonical repository differs from the default.
+under the [MIT](LICENSE) license.
 
 The library passes Arduino Lint against the library specification: the CI
 metadata check runs `arduino-lint --compliance specification` and fails closed

@@ -17,13 +17,13 @@
 //  See docs/arduinoawait/V1_API_CONTRACT.md for the frozen public API and
 //  docs/arduinoawait/ARCHITECTURE.md for the normative design.
 //
-//  Milestone status: M9 (Queue<T, Capacity>). Adds the bounded, scheduler-local
-//  FIFO with blocking send/receive on top of M8: FIFO values and FIFO sender/
-//  receiver waiters over fixed aligned ring storage (no heap, no default-
-//  constructibility requirement), with trySend/tryReceive and automatic
-//  back-pressure. Wakeups enqueue tasks (never inline-resume) per the §9 poll()
-//  model, and there are no ISR methods in V1. waitUntil and final V1 integration
-//  arrive in later milestones without changing this include path.
+//  Milestone status: M10 (waitUntil, diagnostics, and V1 integration) — V1 is
+//  feature-complete on top of M0–M9. This single include exposes the frozen V1
+//  surface: Task<void>, the scheduler (create_task/spawn/current_task/poll,
+//  TaskHandle), yield()/delay*(), parent/child await, Event, ThreadSafeFlag,
+//  Queue<T,Capacity>, waitUntil(), and — under ARDUINOAWAIT_ENABLE_DIAGNOSTICS —
+//  Stats/stats(). M11 (V1 hardening: stress suites, sanitizers, on-device runs)
+//  adds no new API and does not change this include path.
 // ============================================================================
 
 // Compile-time coroutine support verification. Must come first so an
@@ -64,10 +64,19 @@
 // Queue<T, Capacity>: bounded, scheduler-local FIFO with blocking send/receive.
 #include "arduinoawait/queue.h"
 
+// waitUntil(predicate): header-defined coroutine composition over yield().
+#include "arduinoawait/waituntil.h"
+
+// Diagnostics (opt-in via ARDUINOAWAIT_ENABLE_DIAGNOSTICS): Stats/stats() snapshot.
+#include "arduinoawait/diagnostics.h"
+
 namespace arduinoawait {
 
-// Public API entities are added here by subsequent milestones (Task, Scheduler,
-// create_task/spawn, delay/yield, Event, ThreadSafeFlag, Queue, waitUntil).
+// The V1 public surface is declared by the headers included above: Task<void>,
+// Scheduler with create_task/spawn/current_task/poll and TaskHandle, yield() and
+// delay*(), parent/child await, Event, ThreadSafeFlag, Queue<T,Capacity>,
+// waitUntil(), and (under ARDUINOAWAIT_ENABLE_DIAGNOSTICS) Stats/stats(). This
+// aggregation header intentionally declares nothing of its own.
 
 } // namespace arduinoawait
 

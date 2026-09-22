@@ -23,13 +23,14 @@ instead of hand-written `millis()` state machines. It is conceptually a
 statically allocated, C++20, Arduino-native equivalent in spirit to MicroPython
 `asyncio` — **not** a tiny RTOS.
 
-> **Status: milestone M0 (build skeleton).** The public include, configuration
-> surface, and compile-time coroutine-support checks exist. They are verified by
-> the host test suite (C++20 and C++23) and by `examples/Empty` compiles for
-> RP2040 and RP2350 (Arm and RISC-V); the ESP32/ESP32-S3 example compiles run in
-> CI. The scheduler, `Task`, timers, and synchronization primitives are
-> implemented in subsequent milestones. The example above shows the intended V1
-> API and does not compile yet.
+> **Status: V1 feature-complete (milestones M0–M10); V1 hardening (M11) in
+> progress.** `Task`, the cooperative scheduler (`create_task`/`spawn`/`poll`/
+> `current_task`), `yield()`/`delay*()`, parent/child `co_await`, `Event`,
+> `ThreadSafeFlag`, `Queue<T,N>`, and `waitUntil` are implemented and covered by
+> the host test suite (MSVC and Clang, C++20 and C++23) and the eight golden
+> examples, which compile for RP2040 and RP2350 (Arm and RISC-V); the ESP32/
+> ESP32-S3 compiles run in CI. On-device hardware runs are a pre-release gate.
+> The example above compiles and runs.
 
 ## First-class targets
 
@@ -50,6 +51,59 @@ Language floor is C++20. C++23 and later are supported but never required.
   `esp_timer_get_time()` on ESP32, injected fake clock for host tests).
 - Scheduler-local `Event`/`Queue`; external/ISR notification via
   `ThreadSafeFlag`. No coroutine body ever runs in ISR context.
+
+## Core primitives
+
+Every application drives the scheduler by calling `poll()` from `loop()`; each
+`poll()` resumes the tasks that were ready at the start of the pass (work made
+ready during a pass runs on the next one).
+
+```cpp
+#include <ArduinoAwait.h>
+using namespace arduinoawait;
+
+void setup() { spawn(blink()); }
+void loop()  { poll(); }
+```
+
+- **Tasks.** `Task<void>` is a lazy, move-only coroutine. `spawn(task())` hands a
+  task to the scheduler; `create_task(task())` also returns a generation-checked
+  `TaskHandle`. Awaiting a child task (`co_await child()`) runs it to completion
+  and resumes the parent on a later pass. `current_task()` identifies the running
+  task.
+- **Time.** `co_await yield()` is a fair yield point; `co_await delay_ms(n)` /
+  `delay_us(n)` / `delay(n)` suspend on the 64-bit microsecond timebase.
+  `co_await waitUntil(pred)` yields until `pred()` becomes true.
+- **`Event`** — scheduler-local, manual-reset, multi-waiter. `co_await ev.wait()`
+  suspends until `ev.set()` wakes all waiters (FIFO); `ev.clear()` resets it.
+- **`Queue<T, N>`** — bounded, scheduler-local FIFO. `co_await q.send(v)` and
+  `T v = co_await q.receive()` block with automatic back-pressure and FIFO value
+  and waiter order; `trySend`/`tryReceive` are the non-blocking variants.
+- **`ThreadSafeFlag`** — the single-waiter bridge from an ISR/other-core context:
+  `flag.set()` is the only method safe to call from there, and it never runs
+  coroutine code; a task `co_await flag.wait()`s for it.
+- **Diagnostics.** With `ARDUINOAWAIT_ENABLE_DIAGNOSTICS=1`, `stats()` returns an
+  allocation-free snapshot (active/peak/ready/waiting-timer task counts and
+  frame-pool bytes used/peak/free plus allocation failures).
+
+See [`examples/`](examples/) for the eight runnable golden examples
+(`01_Blink` … `08_WaitUntil`).
+
+## The cooperative model: never block
+
+Scheduling is cooperative, not preemptive: a task runs until it `co_await`s. Code
+that busy-waits or blocks (`delay()` the Arduino builtin, `while (!ready) {}`,
+long computations, blocking I/O) stalls **every** task and the whole `poll()`
+loop. Yield control instead — `co_await delay_ms(n)`, `co_await yield()`,
+`co_await waitUntil(pred)`, or await an `Event`/`Queue`/`ThreadSafeFlag`.
+
+`Event` and `Queue` are **scheduler-context only** — use them between tasks, never
+from an interrupt. The only primitive whose `set()` is safe from an ISR, a
+hardware callback, or another core is `ThreadSafeFlag`; it merely marks a pending
+signal that the next `poll()` resolves, so no coroutine ever executes in ISR
+context. On generic Arduino cores without a first-class backend, that ISR-safe
+critical section is unavailable, so `<ArduinoAwait.h>` requires
+`ARDUINOAWAIT_CRITICAL_SECTION_OVERRIDE` there (RP2040/RP2350/ESP32 need nothing).
 
 ## Configuration
 

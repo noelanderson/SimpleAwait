@@ -78,6 +78,19 @@ void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration gener
 // threadsafeflag.h; called by poll() (ARCHITECTURE §9 step 4). A no-op when no
 // external signal is pending.
 void poll_external_signals() noexcept;
+
+#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
+// Diagnostics seam (V1_API_CONTRACT §14): scheduler-side counters. Defined in
+// diagnostics.h and friended by Scheduler so stats() can read the private counts
+// without widening the frozen §7 public Scheduler surface.
+struct SchedulerCounters {
+    size_t activeTasks;
+    size_t peakTasks;
+    size_t readyTasks;
+    size_t waitingTimers;
+};
+SchedulerCounters scheduler_counters() noexcept;
+#endif
 } // namespace detail
 
 // Timer/yield awaitables (V1_API_CONTRACT §8). Forward-declared so the Scheduler
@@ -153,6 +166,9 @@ private:
     template <class T, size_t Capacity>
     friend class Queue;
     friend void detail::poll_external_signals() noexcept;
+#if ARDUINOAWAIT_ENABLE_DIAGNOSTICS
+    friend detail::SchedulerCounters detail::scheduler_counters() noexcept;
+#endif
 
     static constexpr size_t kMaxTasks = ARDUINOAWAIT_MAX_TASKS;
 
@@ -270,6 +286,9 @@ private:
             slot->parent = nullptr; // create_task/spawn tasks have no awaiting parent
             ready_push(slot);
             ++active_count_;
+            if (active_count_ > peak_count_) {
+                peak_count_ = active_count_;
+            }
             result = TaskHandle{this, TaskId{index_of(slot), slot->generation}};
         }
         return result; // reachable via the shutdown/success paths; no code after a hook
@@ -405,6 +424,9 @@ private:
             slot->parent = parent;
             ready_push(slot);
             ++active_count_;
+            if (active_count_ > peak_count_) {
+                peak_count_ = active_count_;
+            }
             parent->state = State::waiting_child;
         }
         return suspend;
@@ -508,6 +530,7 @@ private:
     Slot* ready_tail_ = nullptr;
     size_t ready_count_ = 0;
     size_t active_count_ = 0;
+    size_t peak_count_ = 0; // high-water mark of active_count_ (diagnostics, §14)
     Slot* current_ = nullptr;
     bool in_poll_ = false;
     bool shutting_down_ = false;

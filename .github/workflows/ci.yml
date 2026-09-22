@@ -206,6 +206,12 @@ jobs:
             --fqbn ${{ matrix.fqbn }} \
             --library . \
             examples/07_QueueProducerConsumer
+      - name: Compile 08_WaitUntil golden example
+        run: |
+          arduino-cli compile \
+            --fqbn ${{ matrix.fqbn }} \
+            --library . \
+            examples/08_WaitUntil
 
   # ---------------------------------------------------------------------------
   # Validate Arduino library metadata.

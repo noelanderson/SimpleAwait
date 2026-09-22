@@ -7,6 +7,38 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M10: waitUntil, diagnostics, and V1 integration
+
+- `arduinoawait::waitUntil(predicate)` (`src/arduinoawait/waituntil.h`) — the frozen
+  V1 header-defined coroutine composition (V1_API_CONTRACT §12, ARCHITECTURE §18):
+  `co_await waitUntil(pred)` suspends at fair `yield()` points until `pred()` returns
+  true. It is a pure composition over `yield()` and `Task<void>`, not a scheduler
+  primitive — the scheduler never stores, type-erases, or polls the predicate, which
+  is evaluated once per pass in scheduler context so other tasks keep running. A
+  library-level `-Wsubobject-linkage` suppression (GCC only) keeps the natural
+  lambda-argument usage warning-clean under `-Werror`.
+- `arduinoawait::stats()` and `arduinoawait::Stats` (`src/arduinoawait/diagnostics.h`)
+  — the frozen V1 diagnostics snapshot (V1_API_CONTRACT §14), compiled only when
+  `ARDUINOAWAIT_ENABLE_DIAGNOSTICS=1` (a default build adds no code or data). It
+  returns an allocation-free snapshot of the scheduler counters (active, peak, ready,
+  waiting-timer task counts) and the coroutine-frame pool (bytes used, peak, free,
+  and allocation failures). The scheduler tracks the active-task high-water mark and
+  friends a `detail::scheduler_counters()` seam, so the frozen §7 public Scheduler
+  surface is unchanged.
+- Golden example `examples/08_WaitUntil` (a worker `co_await waitUntil`s a threshold
+  while a heartbeat keeps running); compiles for RP2040 and RP2350 (Arm and RISC-V),
+  added to the CI matrix.
+- Host tests (MSVC + Clang 23.1.1, C++20 and C++23): `test_m10_waituntil` (an
+  already-true predicate completes; a false predicate suspends fairly while a
+  concurrent task advances; the waiter resumes once the predicate becomes true) and
+  `test_m10_diagnostics` (idle is all-zero with frames free; active tasks and frame
+  bytes are counted with peaks tracked; and after a completed cycle the live counts
+  and frame bytes return to zero, peaks are retained, and no allocation failed).
+- V1 integration: `README.md` now documents the core primitives, the never-block
+  cooperative model, and the scheduler-local vs external/ISR (`ThreadSafeFlag`)
+  distinction; `library.properties` describes the implemented V1 surface. The umbrella
+  `<ArduinoAwait.h>` include path is unchanged.
+
 ### Added — M9: Queue<T, Capacity>
 
 - `arduinoawait::Queue<T, Capacity>` (`src/arduinoawait/queue.h`) — the frozen V1

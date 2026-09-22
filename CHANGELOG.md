@@ -45,7 +45,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   `invalid_task`, not stranded, no state mutation), and `test_m9_shutdown` (a
   namespace-scope queue that outlives the scheduler singleton: parked awaiters unlink
   as their frames are torn down at teardown, so the queue's destructor sees no waiter
-  and the process exits cleanly).
+  and the process exits cleanly). An optimized subprocess regression
+  (`test_m9_noreturn`, GCC/Clang at `-O2`) proves the no-value `await_resume` path
+  spins deterministically (a guaranteed C++20 forward-progress operation) instead of
+  falling through under a returning error hook.
 - Golden example `examples/07_QueueProducerConsumer` (a producer and a slower
   consumer exchange values through a bounded queue with automatic back-pressure) and
   `hardware/QueueProducerConsumer` validation sketch (a producer/consumer pair over a

@@ -178,6 +178,26 @@ add_test(NAME neg_flag_generic_unsupported_rejected
         "-DAA_CONFIG=$<CONFIG>"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/run_negcompile_test.cmake")
 
+# Optimized no-return regression (M9 review): the no-value await_resume path must
+# spin (a guaranteed C++20 forward-progress operation) rather than fall through to
+# move a never-constructed object, even at -O2 with a RETURNING error hook. Built at
+# -O2 on GCC/Clang (which apply the [intro.progress] rule the reviewer reproduced;
+# MSVC /O2 conflicts with the harness debug /RTC1). The wrapper requires the process
+# to be killed by a timeout rather than exit on its own.
+if(NOT MSVC)
+    add_executable(test_m9_noreturn test_m9_noreturn.cpp)
+    target_link_libraries(test_m9_noreturn PRIVATE arduinoawait::arduinoawait)
+    set_target_properties(test_m9_noreturn PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF)
+    target_compile_options(test_m9_noreturn PRIVATE -O2 -Wall -Wextra -Wpedantic -Werror)
+    add_test(NAME test_m9_noreturn_hangs
+        COMMAND "${CMAKE_COMMAND}"
+            "-DAA_EXE=$<TARGET_FILE:test_m9_noreturn>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/run_hang_test.cmake")
+endif()
+
 # Metadata gate self-test (fail-closed behavior of lint_metadata_gate.py).
 if(Python3_FOUND)
     add_test(NAME test_lint_gate

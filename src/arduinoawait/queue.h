@@ -133,12 +133,16 @@ public:
                     return T{};
                 } else {
                     // No value exists and none can be synthesized for this T. Report
-                    // and never fall through: a configured hook that RETURNS must not
-                    // reach the move of a non-existent object (lifetime UB). Looping
-                    // the report is unconditionally non-returning yet leaves no
-                    // unreachable statement after a [[noreturn]] hook. Only reachable
+                    // and never return. The volatile access is a guaranteed C++20
+                    // forward-progress operation (mirroring detail::halt()), so the
+                    // optimizer cannot assume this loop terminates and fall through
+                    // to move a non-existent object — even under a configured hook
+                    // that RETURNS. It is placed BEFORE the hook so it stays
+                    // reachable when the default hook is [[noreturn]]. Only reachable
                     // via a foreign/nested await.
                     for (;;) {
+                        volatile unsigned aa_no_value = 0u;
+                        (void)aa_no_value;
                         ARDUINOAWAIT_ON_ERROR(Error::invalid_task);
                     }
                 }

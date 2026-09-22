@@ -3,7 +3,7 @@
 **Status:** Normative architecture for V1 implementation  
 **Language floor:** C++20  
 **Primary targets:** RP2040, RP2350 (Arm and RISC-V), ESP32 family  
-**Related:** `SimpleAwait_Implementation_Spec.md`, `V1_API_CONTRACT.md`, `../../AGENTS.md`, `IMPLEMENTATION_PLAN.md`
+**Related:** `SimpleAwait_Implementation_Spec.md`, `V1_API_CONTRACT.md`, `../../AGENTS.md`, `ROADMAP.md`
 
 ---
 

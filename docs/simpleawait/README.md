@@ -10,8 +10,8 @@ installation, and examples, see the [top-level README](../../README.md).
   allocator, the monotonic clock, and the synchronization primitives.
 - [`SimpleAwait_Implementation_Spec.md`](SimpleAwait_Implementation_Spec.md) —
   implementation notes and rationale behind the design.
-- [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) — the staged plan followed
-  during initial development, retained as a historical record.
+- [`ROADMAP.md`](ROADMAP.md) — deferred and future work (1.0 is complete and
+  frozen).
 
 When the code and these documents disagree, the code is authoritative for
 behavior and the API contract is authoritative for the public surface; update

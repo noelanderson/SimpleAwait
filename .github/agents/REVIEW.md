@@ -14,9 +14,8 @@ Before reviewing code, read:
 2. `/docs/simpleawait/SimpleAwait_Implementation_Spec.md`
 3. `/docs/simpleawait/ARCHITECTURE.md`
 4. `/docs/simpleawait/V1_API_CONTRACT.md`
-5. `/docs/simpleawait/IMPLEMENTATION_PLAN.md`
 
-Then inspect the complete diff for the milestone and enough surrounding code to understand ownership and control flow.
+Then inspect the complete diff under review and enough surrounding code to understand ownership and control flow.
 
 Do not review only the changed lines when correctness depends on surrounding scheduler, allocator, or coroutine lifetime behavior.
 
@@ -249,7 +248,7 @@ Conclude with exactly one:
 
 - `REVIEW STATUS: BLOCKED`
 - `REVIEW STATUS: CHANGES REQUIRED`
-- `REVIEW STATUS: READY FOR MILESTONE GATE`
+- `REVIEW STATUS: APPROVED`
 
 Do not give a positive status merely because tests pass.
 

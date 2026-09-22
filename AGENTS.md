@@ -1,35 +1,35 @@
 # SimpleAwait Coding-Agent Instructions
 
-This file is the operating contract for AI coding agents implementing SimpleAwait.
+This file is the operating contract for AI coding agents maintaining and
+extending SimpleAwait. Version 1.0 is complete and its public API is frozen; the
+rules below exist to keep every future change faithful to the library's design.
 
 Read these files before changing code:
 
 1. `docs/simpleawait/V1_API_CONTRACT.md`
 2. `docs/simpleawait/ARCHITECTURE.md`
 3. `docs/simpleawait/SimpleAwait_Implementation_Spec.md`
-4. `docs/simpleawait/IMPLEMENTATION_PLAN.md`
 
-If they conflict, do not silently choose one interpretation. For implementation work, the intended precedence is:
+If they conflict, do not silently choose one interpretation. The intended precedence is:
 
 ```text
 docs/simpleawait/V1_API_CONTRACT.md
     > docs/simpleawait/ARCHITECTURE.md
     > docs/simpleawait/SimpleAwait_Implementation_Spec.md
-    > docs/simpleawait/IMPLEMENTATION_PLAN.md
 ```
 
-When a conflict is discovered, update the documents together before implementing behavior that would make the inconsistency permanent.
+When a conflict is discovered, update the documents together before implementing behavior that would make the inconsistency permanent. Planned but out-of-scope work is tracked in `docs/simpleawait/ROADMAP.md`.
 
 ---
 
 
 ## Independent review
 
-At every milestone gate, use the independent review instructions in:
+For any substantial or invariant-affecting change, obtain an independent review using:
 
 `/.github/agents/REVIEW.md`
 
-The primary implementation prompt is available at:
+The primary coding-agent prompt is available at:
 
 `/.github/prompts/PRIMARY_AGENT_PROMPT.md`
 
@@ -37,9 +37,9 @@ Use a different model family or competing model for review when the development 
 
 ---
 
-## 1. Goal
+## 1. Scope
 
-Implement a small, deterministic, fixed-memory cooperative coroutine library for Arduino using native standard C++ coroutines.
+SimpleAwait is a small, deterministic, fixed-memory cooperative coroutine library for Arduino built on native standard C++ coroutines. The 1.0 feature set is frozen; changes maintain, harden, or carefully extend it without altering its character.
 
 Primary targets:
 
@@ -101,27 +101,13 @@ Do not:
 
 ## 4. Change discipline
 
-One architectural subsystem per logical change.
-
-Good sequence:
-
-```text
-clock abstraction
-then allocator
-then Task ownership
-then scheduler FIFO
-then timers/yield
-then child await
-then WaitQueue/Event
-then ThreadSafeFlag
-then Queue
-```
+One architectural subsystem per logical change. Keep each change focused: touch the scheduler, or the allocator, or a single primitive — not several at once.
 
 Bad change:
 
 > "Refactor allocator, rename Task, add cancellation, switch timer model, and optimize ISR wakeups."
 
-Do not proceed to the next implementation milestone while the current milestone's required host tests are failing.
+Do not merge or advance while the host test suite is failing.
 
 ---
 
@@ -349,7 +335,7 @@ Arduino-ESP32 / ESP32
 Arduino-ESP32 / ESP32-S3
 ```
 
-Hardware runtime coverage must include at least RP2040, RP2350, and ESP32-S3 before V1 release.
+Hardware runtime coverage must include at least RP2040, RP2350, and ESP32-S3.
 
 Do not hard-code guessed Arduino architecture macros. Verify macros from the actual cores and isolate target detection in the platform layer.
 
@@ -384,7 +370,7 @@ Prefer independent implementation of behavioral ideas when licensing/provenance 
 
 ## 18. Do not optimize before correctness
 
-Avoid these until all V1 correctness tests pass:
+Avoid these unless a measured need justifies them and the correctness suite stays green:
 
 - symmetric coroutine transfer;
 - timer heap/pairing heap;
@@ -400,7 +386,7 @@ A small O(n) path for at most tens of tasks is acceptable when it saves RAM and 
 
 ## 19. Required completion note for coding-agent work
 
-For each completed milestone, report:
+For each substantive change, report:
 
 1. files changed;
 2. public API changes, if any;

@@ -115,55 +115,55 @@ jobs:
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
             --library . \
-            hardware/ClockMonotonic
+            extras/hardware/ClockMonotonic
       - name: Compile frame pool validation sketch (instantiates the allocator)
         run: |
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
             --library . \
-            hardware/FramePoolCheck
+            extras/hardware/FramePoolCheck
       - name: Compile task lifecycle sketch (coroutine + pool integration)
         run: |
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
             --library . \
-            hardware/TaskLifecycle
+            extras/hardware/TaskLifecycle
       - name: Compile scheduler validation sketch (fixed-slot scheduler + poll)
         run: |
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
             --library . \
-            hardware/SchedulerRun
+            extras/hardware/SchedulerRun
       - name: Compile timer wait validation sketch (delay + native clock)
         run: |
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
             --library . \
-            hardware/TimerWait
+            extras/hardware/TimerWait
       - name: Compile child await validation sketch (co_await child Task)
         run: |
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
             --library . \
-            hardware/ChildAwait
+            extras/hardware/ChildAwait
       - name: Compile event wake validation sketch (Event multi-waiter FIFO)
         run: |
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
             --library . \
-            hardware/EventWake
+            extras/hardware/EventWake
       - name: Compile flag IRQ validation sketch (ThreadSafeFlag from an ISR)
         run: |
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
             --library . \
-            hardware/FlagIRQ
+            extras/hardware/FlagIRQ
       - name: Compile queue producer/consumer validation sketch (bounded Queue FIFO)
         run: |
           arduino-cli compile \
             --fqbn ${{ matrix.fqbn }} \
             --library . \
-            hardware/QueueProducerConsumer
+            extras/hardware/QueueProducerConsumer
       - name: Compile 01_Blink golden example
         run: |
           arduino-cli compile \

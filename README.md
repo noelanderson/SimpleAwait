@@ -36,7 +36,7 @@ statically allocated, C++20, Arduino-native equivalent in spirit to MicroPython
 > `waitUntil` are covered by a deterministic host test suite (MSVC and Clang,
 > C++20 and C++23, plus ASan/UBSan) and eight golden examples that compile across
 > the full target matrix — RP2040, RP2350 (Arm and RISC-V), and ESP32/ESP32-S3 —
-> in CI. On-target validation sketches live in [`hardware/`](hardware/). The
+> in CI. On-target validation sketches live in [`extras/hardware/`](extras/hardware/). The
 > example above compiles and runs.
 
 ## First-class targets

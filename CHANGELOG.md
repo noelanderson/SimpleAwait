@@ -59,7 +59,7 @@ heap allocation for coroutine frames. The public API is frozen; see
 - **Tests** — a deterministic host test suite covering the public API and its
   failure modes, run on GCC and Clang across `-O0`/`-O2`/`-Os` at C++20 and
   C++23, and under AddressSanitizer/UndefinedBehaviorSanitizer. On-target
-  validation sketches live in [`hardware/`](hardware/).
+  validation sketches live in [`extras/hardware/`](extras/hardware/).
 
 ### Targets
 

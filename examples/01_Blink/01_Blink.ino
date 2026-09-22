@@ -8,6 +8,13 @@
 
 #include <SimpleAwait.h>
 
+// Some cores (e.g. the generic "ESP32 Dev Module" board variant) don't define
+// LED_BUILTIN because there is no single fixed board; fall back to the GPIO most
+// ESP32 dev boards use for an onboard LED.
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
+
 using namespace simpleawait;
 
 constexpr int kLedPin = LED_BUILTIN;

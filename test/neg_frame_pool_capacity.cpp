@@ -1,4 +1,4 @@
-// Negative-compilation probe for the FramePool capacity limit (M2 H1).
+// Negative-compilation probe for the FramePool capacity limit.
 //
 // A pool capacity that does not fit the 32-bit block header fields must be
 // rejected by a static_assert rather than silently truncated. On the 64-bit host

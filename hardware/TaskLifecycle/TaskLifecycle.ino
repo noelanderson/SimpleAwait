@@ -1,4 +1,4 @@
-// M3 hardware validation — lazy Task<void> lifetime and frame-pool integration.
+// Hardware validation — lazy Task<void> lifetime and frame-pool integration.
 //
 // Creates and destroys an unscheduled Task on real hardware and confirms its
 // coroutine frame is taken from the fixed pool and returned on destruction (full

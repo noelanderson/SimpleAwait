@@ -1,4 +1,4 @@
-// Negative-compilation probe for the generic-Arduino umbrella header (M8 H1/N1).
+// Negative-compilation probe for the generic-Arduino umbrella header.
 //
 // On a generic Arduino target (ARDUINO defined, but not a first-class RP2040/
 // RP2350/ESP32 core and no critical-section override) there is no PORTABLE way to

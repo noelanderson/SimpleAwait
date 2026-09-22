@@ -1,4 +1,4 @@
-// M2 hardware validation — fixed coroutine frame allocator.
+// Hardware validation — fixed coroutine frame allocator.
 //
 // Exercises detail::FramePool on real hardware: allocate a couple of frames
 // (including an over-aligned one), free them, and confirm full recovery

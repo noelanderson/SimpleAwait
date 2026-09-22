@@ -32,7 +32,7 @@
 // A minimal sanity guard: the standard coroutine primitives must be usable.
 // This does not execute anything; it only forces the names to resolve so a
 // broken/experimental-only coroutine environment fails at include time rather
-// than deep inside a later milestone's template instantiation.
+// than deep inside an unrelated template instantiation.
 namespace simpleawait {
 namespace detail {
 

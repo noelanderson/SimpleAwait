@@ -1,4 +1,4 @@
-// M7 hardware validation — Event wake ordering on real hardware.
+// Hardware validation — Event wake ordering on real hardware.
 //
 // Three waiter tasks co_await the same manual-reset Event and suspend; a
 // controller sets the Event to release them, then clears it for the next round.

@@ -1,4 +1,4 @@
-// M6 hardware validation — parent/child await on real hardware.
+// Hardware validation — parent/child await on real hardware.
 //
 // A parent task awaits a sequence of child tasks; each child does a timed unit of
 // work. The sketch confirms on-target that co_await of a child Task compiles and

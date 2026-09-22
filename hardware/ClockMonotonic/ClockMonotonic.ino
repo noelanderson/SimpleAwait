@@ -1,4 +1,4 @@
-// M1 hardware validation — native monotonic microsecond clock.
+// Hardware validation — native monotonic microsecond clock.
 //
 // Confirms the 64-bit microsecond timebase is monotonic AND actually advances on
 // real hardware. The same source runs on every first-class target; the platform

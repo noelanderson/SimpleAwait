@@ -1,4 +1,4 @@
-// M8 hardware validation — self-driving ThreadSafeFlag IRQ-storm stress with a
+// Hardware validation — self-driving ThreadSafeFlag IRQ-storm stress with a
 // deterministic PASS/FAIL verdict.
 //
 // A repeating hardware-timer interrupt (RP2040/RP2350 repeating timer; ESP32
@@ -28,7 +28,7 @@
 // This exercises the whole external-signal path (platform CriticalSection, set()
 // from a real ISR, the scheduler external-pending resolution) and produces an
 // on-device pass/fail result. Host CI COMPILES this on every first-class target;
-// the on-device RUN is a pre-V1-release gate (AGENTS.md §16) and its result is the
+// the on-device RUN provides the hardware evidence and its result is the
 // "RESULT=PASS" line below. ThreadSafeFlag::set() is ISR-safe only on the
 // first-class targets, so this sketch is unsupported elsewhere by construction.
 
@@ -205,7 +205,7 @@ void loop() {
     const bool pass = liveness && coalescing && noIsrBody && drainedOne;
 
     Serial.println();
-    Serial.println("== M8 FlagIRQ stress verdict ==");
+    Serial.println("== FlagIRQ stress verdict ==");
     Serial.print("storm_signals=");
     Serial.println(signalsInStorm);
     Serial.print("storm_wakes=");

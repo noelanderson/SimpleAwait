@@ -173,7 +173,7 @@ private:
     static constexpr size_t kMaxTasks = SIMPLEAWAIT_MAX_TASKS;
 
     // Every slot index (0..kMaxTasks-1) must be representable in TaskSlot, or a
-    // handle's identity could be aliased by narrowing in index_of() (M1).
+    // handle's identity could be aliased by narrowing in index_of().
     static_assert(kMaxTasks <= static_cast<size_t>(UINT16_MAX) + 1u,
                   "SIMPLEAWAIT_MAX_TASKS exceeds the representable TaskSlot range");
 
@@ -440,7 +440,7 @@ private:
     // Returns true if the caller must stay suspended (parked); false if the
     // awaiting coroutine is not the currently running SimpleAwait task (foreign
     // or nested), in which case the error is reported and the caller resumes
-    // rather than hang. Mirrors the child-await parent validation (M6).
+    // rather than hang. Mirrors the child-await parent validation.
     bool wait_on(WaitQueue& q, std::coroutine_handle<> awaiting) noexcept {
         Slot* self = current_;
         bool suspend = false;

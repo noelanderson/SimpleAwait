@@ -1,4 +1,4 @@
-// M9 hardware validation — Queue<T,N> producer/consumer FIFO + back-pressure.
+// Hardware validation — Queue<T,N> producer/consumer FIFO + back-pressure.
 //
 // A producer sends a monotonically increasing counter into a small bounded Queue;
 // a consumer receives and verifies strict FIFO order (each value == the previous

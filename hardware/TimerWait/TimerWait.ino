@@ -1,4 +1,4 @@
-// M5 hardware validation — timer waits on the native clock.
+// Hardware validation — timer waits on the native clock.
 //
 // Spawns a task that repeatedly co_await delay_ms(500) and reports the interval
 // actually measured from the native 64-bit microsecond clock (time_us_64() on

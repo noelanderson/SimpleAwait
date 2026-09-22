@@ -6,8 +6,8 @@
 // appends the task to the Event's FIFO waiter queue. set() latches the Event and
 // wakes all current waiters in FIFO order (they run on a LATER poll() pass);
 // clear() resets and affects only future waits. Event is scheduler-context only:
-// there is no ISR set() (use ThreadSafeFlag for external contexts, a later
-// milestone). Destroying an Event that still has waiters is a deterministic
+// there is no ISR set() (use ThreadSafeFlag for external contexts). Destroying an
+// Event that still has waiters is a deterministic
 // programming error (Error::object_destroyed_with_waiters).
 
 #include <coroutine>

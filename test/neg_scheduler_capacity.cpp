@@ -1,4 +1,4 @@
-// Negative-compilation probe for the scheduler task-capacity limit (M4 M1).
+// Negative-compilation probe for the scheduler task-capacity limit.
 //
 // SIMPLEAWAIT_MAX_TASKS greater than the representable TaskSlot range would let
 // index_of() narrow a slot index and alias a handle's identity. A static_assert

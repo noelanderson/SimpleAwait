@@ -1,14 +1,13 @@
 // SimpleAwait — 02_TwoTasks golden example.
 //
-// Demonstrates the M4 scheduling API: two independent coroutine Tasks scheduled
+// Demonstrates the core scheduling API: two independent coroutine Tasks scheduled
 // to run concurrently, driven by a single cooperative poll() pass. `create_task`
 // returns an observable TaskHandle; `spawn` is fire-and-forget. Within one poll()
 // pass the scheduler resumes the tasks that were ready at the start of the pass,
 // in FIFO order, and never resumes a task twice in the same pass.
 //
-// This example uses only the M4 API (create_task / spawn / current_task / poll),
-// so it compiles unchanged from M4 onward. Later milestones add delay()/yield(),
-// which let tasks suspend and interleave over time (see 03_YieldFairness).
+// This example uses only create_task / spawn / current_task / poll. delay() and
+// yield() let tasks suspend and interleave over time (see 03_YieldFairness).
 
 #include <SimpleAwait.h>
 

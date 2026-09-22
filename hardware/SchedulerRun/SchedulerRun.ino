@@ -1,4 +1,4 @@
-// M4 hardware validation — cooperative scheduler on real hardware.
+// Hardware validation — cooperative scheduler on real hardware.
 //
 // Drives the fixed-slot scheduler through many bounded poll() passes on-target
 // and confirms: two tasks scheduled per pass both run (FIFO) and complete within

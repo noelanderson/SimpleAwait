@@ -17,13 +17,11 @@
 //  See docs/simpleawait/V1_API_CONTRACT.md for the frozen public API and
 //  docs/simpleawait/ARCHITECTURE.md for the normative design.
 //
-//  Milestone status: M11 (V1 hardening) — the V1 feature set is complete and
-//  frozen. This single include exposes the whole V1 surface: Task<void>, the
-//  scheduler (create_task/spawn/current_task/poll, TaskHandle), yield()/delay*(),
-//  parent/child await, Event, ThreadSafeFlag, Queue<T,Capacity>, waitUntil(), and —
-//  under SIMPLEAWAIT_ENABLE_DIAGNOSTICS — Stats/stats(). M11 adds stress suites,
-//  optimization/sanitizer build-mode coverage, and on-device validation without any
-//  new API or change to this include path.
+//  This single include exposes the whole public API: Task<void>, the scheduler
+//  (create_task/spawn/current_task/poll, TaskHandle), yield()/delay*(),
+//  parent/child await, Event, ThreadSafeFlag, Queue<T,Capacity>, waitUntil(),
+//  and — under SIMPLEAWAIT_ENABLE_DIAGNOSTICS — Stats/stats(). The public API is
+//  frozen; see docs/simpleawait/V1_API_CONTRACT.md.
 // ============================================================================
 
 // Compile-time coroutine support verification. Must come first so an

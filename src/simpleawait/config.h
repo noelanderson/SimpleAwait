@@ -72,9 +72,8 @@
 // -----------------------------------------------------------------------------
 // The default hook halts deterministically. On hosted builds it aborts so tests
 // fail loudly; on embedded builds it spins forever, keeping the core free of any
-// Serial dependency. It is a function template so that the default is valid
-// before the simpleawait::Error enum is introduced in a later milestone and for
-// any error argument type an application might pass.
+// Serial dependency. It is a function template so the default accepts whatever
+// error argument type is passed (including simpleawait::Error).
 namespace simpleawait {
 namespace detail {
 

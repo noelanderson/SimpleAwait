@@ -12,6 +12,9 @@ CTestTestfile.cmake
 Testing/
 *.cmake.stamp
 
+# Build / tool logs
+*.log
+
 # Compiled objects / binaries
 *.o
 *.obj

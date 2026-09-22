@@ -1,18 +1,18 @@
 // SimpleAwait — Empty build-skeleton example.
 //
-// This sketch exists to validate the M0 build matrix: it includes the public
+// This sketch exists to validate the build/target matrix: it includes the public
 // SimpleAwait header (exercising the compile-time coroutine-support checks and
-// configuration surface) and compiles cleanly on every first-class target with
-// no functional scheduling yet.
+// configuration surface) and compiles cleanly on every first-class target.
 //
-// Later milestones introduce the golden examples (01_Blink, 02_TwoTasks, ...).
+// For a functional starting point, see the golden examples (01_Blink,
+// 02_TwoTasks, ...).
 
 #include <SimpleAwait.h>
 
 void setup() {
-    // Nothing to initialize yet. SimpleAwait requires no begin() call.
+    // Nothing to initialize. SimpleAwait requires no begin() call.
 }
 
 void loop() {
-    // Future milestones will call simpleawait::poll() here.
+    // A real sketch drives the scheduler by calling simpleawait::poll() here.
 }

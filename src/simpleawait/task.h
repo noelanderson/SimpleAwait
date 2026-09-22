@@ -5,7 +5,7 @@
 // Calling a Task-returning coroutine creates the coroutine frame (allocated from
 // the fixed frame pool, never the global heap) and immediately suspends at
 // initial_suspend — the body does NOT run until the Task is scheduled
-// (create_task/spawn, later milestone) or awaited (co_await, later milestone).
+// (create_task/spawn) or awaited (co_await).
 //
 // Ownership is a single token: exactly one Task owns a live frame. Moving
 // transfers the token and empties the source; an empty/moved-from Task owns

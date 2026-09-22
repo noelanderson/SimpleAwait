@@ -11,33 +11,33 @@ relevant platform backend links.
 
 Current sketches:
 
-- `ClockMonotonic/` — M1: reads the native 64-bit microsecond clock and checks it
+- `ClockMonotonic/` — reads the native 64-bit microsecond clock and checks it
   is monotonic and actually advances (portable across RP2040/RP2350/ESP32; the
   platform layer selects the backend).
-- `FramePoolCheck/` — M2: allocates and frees frames (including an over-aligned
+- `FramePoolCheck/` — allocates and frees frames (including an over-aligned
   one) and confirms full recovery, forcing the allocator to compile and link for
   the target's word size and alignment.
-- `TaskLifecycle/` — M3: creates and destroys an unscheduled lazy `Task<void>` and
+- `TaskLifecycle/` — creates and destroys an unscheduled lazy `Task<void>` and
   confirms its coroutine frame is taken from the pool and returned on destruction
   (full recovery), exercising the coroutine promise's pool-backed
   `operator new`/`delete` for the target's coroutine ABI.
-- `SchedulerRun/` — M4: drives the fixed-slot scheduler through many bounded
+- `SchedulerRun/` — drives the fixed-slot scheduler through many bounded
   `poll()` passes, confirming FIFO run order, `current_task()` inside/outside a
   pass, `TaskHandle::done()` after completion, and slot reuse across passes with a
   bounded active-task count and no heap use.
-- `TimerWait/` — M5: a task repeatedly `co_await delay_ms(500)` and reports the
+- `TimerWait/` — a task repeatedly `co_await delay_ms(500)` and reports the
   interval actually measured from the native 64-bit microsecond clock, while a
   second task yields continuously (confirming the sleeping timer task does not
   starve ready work). Forces the timer path to link the native clock backend.
-- `ChildAwait/` — M6: a parent task `co_await`s a sequence of child tasks (each
+- `ChildAwait/` — a parent task `co_await`s a sequence of child tasks (each
   doing timed work) and confirms they complete in order, while a heartbeat task
   runs concurrently. Forces the child-await path (`TaskAwaiter` -> scheduler
   `start_child`) and the coroutine ABI to compile and link for the target.
-- `EventWake/` — M7: three waiter tasks `co_await` one manual-reset Event; a
+- `EventWake/` — three waiter tasks `co_await` one manual-reset Event; a
   controller `set()`s it to release them and reports whether the wake order was
   FIFO, then `clear()`s it for the next round. Forces the Event / WaitQueue path
   (park in `waiting_local`, `wake_all` to the ready FIFO) to compile and link.
-- `FlagIRQ/` — M8: a SELF-DRIVING IRQ-storm stress test. A repeating hardware-timer
+- `FlagIRQ/` — a SELF-DRIVING IRQ-storm stress test. A repeating hardware-timer
   interrupt (RP2040/RP2350 repeating timer; ESP32 `hw_timer`) calls
   `ThreadSafeFlag::set()` from ISR context at a fixed rate; a coroutine `co_await`s
   the flag while a heartbeat task runs concurrently. After a fixed number of signals
@@ -48,9 +48,8 @@ Current sketches:
   Forces the external-signal path (platform `CriticalSection`, ISR `set()`, the
   scheduler external-pending resolution) to compile and link, and produces on-device
   pass/fail evidence that an ISR reliably wakes a waiting coroutine without resuming
-  coroutine code from the ISR. On-device RUN is a pre-V1-release gate (AGENTS.md
-  §16); host CI only compiles it.
-- `QueueProducerConsumer/` — M9: a producer sends a monotonically increasing
+  coroutine code from the ISR. On-device runs provide the hardware evidence; host CI only compiles it.
+- `QueueProducerConsumer/` — a producer sends a monotonically increasing
   counter into a small bounded `Queue<uint32_t,4>`; a consumer receives and checks
   strict FIFO order. The small capacity forces both full-send and empty-receive
   suspension, and the ever-growing counter wraps the ring many times; a reporter
@@ -58,5 +57,4 @@ Current sketches:
   storage, sender/receiver wait sets, direct hand-off, back-pressure) to compile,
   link, and run on device.
 
-Additional target-specific validation is added as later milestones land (for
-example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).
+Additional target-specific validation runs on device (for example IRQ → `ThreadSafeFlag` wake on RP2040, RP2350, and ESP32-S3).

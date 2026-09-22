@@ -8,36 +8,49 @@ SimpleAwait lets you write embedded control flow as ordinary sequential code:
 ```cpp
 #include <SimpleAwait.h>
 using namespace simpleawait;
-
+f
+// Led on 500ms, off 1s, repeat
 Task<void> blink() {
     while (true) {
         digitalWrite(LED_BUILTIN, HIGH);
         co_await delay_ms(500);
         digitalWrite(LED_BUILTIN, LOW);
-        co_await delay_ms(500);
+        co_await delay_ms(1000);
+    }
+}
+
+// Each worker wakes on its own interval and reports how long it actually slept.
+Task<void> worker(const char* name, uint32_t period_ms) {
+    uint32_t last = millis();
+    while (true) {
+        co_await delay_ms(period_ms);
+        uint32_t now = millis();
+        Serial.print(name);
+        Serial.print(": ");
+        Serial.print(now - last);
+        Serial.println(" ms since last run");
+        last = now;
     }
 }
 
 void setup() {
+    Serial.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
     spawn(blink());
+    spawn(worker("worker A", 1350));
+    spawn(worker("worker B", 1200));
 }
 
-void loop() { poll(); }
+void loop() { 
+    poll(); 
+}
 ```
 
 instead of hand-written `millis()` state machines. It is conceptually a
 statically allocated, C++20, Arduino-native equivalent in spirit to MicroPython
 `asyncio` — **not** a tiny RTOS.
 
-> **Status: 1.0.0 — the V1 API is complete and frozen.** `Task`, the cooperative
-> scheduler (`create_task`/`spawn`/`poll`/`current_task`), `yield()`/`delay*()`,
-> parent/child `co_await`, `Event`, `ThreadSafeFlag`, `Queue<T,N>`, and
-> `waitUntil` are covered by a deterministic host test suite (MSVC and Clang,
-> C++20 and C++23, plus ASan/UBSan) and eight golden examples that compile across
-> the full target matrix — RP2040, RP2350 (Arm and RISC-V), and ESP32/ESP32-S3 —
-> in CI. On-target validation sketches live in [`extras/hardware/`](extras/hardware/). The
-> example above compiles and runs.
+
 
 ## First-class targets
 
@@ -61,9 +74,11 @@ Language floor is C++20. C++23 and later are supported but never required.
 
 ## Core primitives
 
-Every application drives the scheduler by calling `poll()` from `loop()`; each
-`poll()` resumes the tasks that were ready at the start of the pass (work made
-ready during a pass runs on the next one).
+Every application drives the scheduler by calling
+[`poll()`](docs/simpleawait/V1_API_CONTRACT.md#7-scheduler) from `loop()`; each
+`poll()` resumes the tasks that were ready at the start of the pass and leaves any
+work it readies for the next pass. The exact, frozen scheduler pass is enumerated
+in [architecture §9](docs/simpleawait/ARCHITECTURE.md#9-exact-v1-scheduler-pass).
 
 ```cpp
 #include <SimpleAwait.h>
@@ -73,25 +88,92 @@ void setup() { spawn(blink()); }
 void loop()  { poll(); }
 ```
 
-- **Tasks.** `Task<void>` is a lazy, move-only coroutine. `spawn(task())` hands a
-  task to the scheduler; `create_task(task())` also returns a generation-checked
-  `TaskHandle`. Awaiting a child task (`co_await child()`) runs it to completion
-  and resumes the parent on a later pass. `current_task()` identifies the running
+The summaries below are a quick reference; the **authoritative** signatures and
+semantics are the frozen
+[V1 API Contract](docs/simpleawait/V1_API_CONTRACT.md), with design rationale in
+[ARCHITECTURE](docs/simpleawait/ARCHITECTURE.md) and the full narrative in the
+[implementation spec](docs/simpleawait/SimpleAwait_Implementation_Spec.md). Each
+entry links its contract section (API) and architecture section (design).
+
+- **Tasks.**
+
+  `Task<void>` is a lazy, move-only coroutine whose frame lives in the fixed pool 
+  and whose body runs only inside `poll()`.
+
+  `spawn(task())` schedules the `Task` detached; 
+
+  `create_task(task())` schedules `Task` and also returns a  generation-checked 
+  `TaskHandle` whose `done()` stays observable until the slot is reused. 
+
+  Awaiting a child (`co_await child()`) runs it to completion and
+  resumes the parent on a later pass; `current_task()` identifies the running
   task.
-- **Time.** `co_await yield()` is a fair yield point; `co_await delay_ms(n)` /
-  `delay_us(n)` / `delay(n)` suspend on the 64-bit microsecond timebase.
-  `co_await waitUntil(pred)` yields until `pred()` becomes true.
-- **`Event`** — scheduler-local, manual-reset, multi-waiter. `co_await ev.wait()`
-  suspends until `ev.set()` wakes all waiters (FIFO); `ev.clear()` resets it.
-- **`Queue<T, N>`** — bounded, scheduler-local FIFO. `co_await q.send(v)` and
-  `T v = co_await q.receive()` block with automatic back-pressure and FIFO value
-  and waiter order; `trySend`/`tryReceive` are the non-blocking variants.
-- **`ThreadSafeFlag`** — the single-waiter bridge from an ISR/other-core context:
-  `flag.set()` is the only method safe to call from there, and it never runs
-  coroutine code; a task `co_await flag.wait()`s for it.
-- **Diagnostics.** With `SIMPLEAWAIT_ENABLE_DIAGNOSTICS=1`, `stats()` returns an
-  allocation-free snapshot (active/peak/ready/waiting-timer task counts and
-  frame-pool bytes used/peak/free plus allocation failures).
+  
+  *Spec: API [§4 Task](docs/simpleawait/V1_API_CONTRACT.md#4-task),
+  [§5 TaskHandle](docs/simpleawait/V1_API_CONTRACT.md#5-taskhandle),
+  [§6 scheduling](docs/simpleawait/V1_API_CONTRACT.md#6-task-scheduling); design
+  [§5 state machine](docs/simpleawait/ARCHITECTURE.md#5-task-state-machine),
+  [§19 parent/child](docs/simpleawait/ARCHITECTURE.md#19-parentchild-await).*
+- **Time.**
+
+  `co_await yield()` is a fair yield point;
+
+  `co_await delay_ms(n)` / `delay_us(n)` / `delay(n)` suspend on the 64-bit microsecond
+  timebase, and even a zero duration re-queues for a later pass instead of busy-spinning.
+  
+  *Spec: API
+  [§8 delay and yield](docs/simpleawait/V1_API_CONTRACT.md#8-delay-and-yield);
+  design [§11 timer architecture](docs/simpleawait/ARCHITECTURE.md#11-timer-architecture).*
+- **Conditions.**
+
+  `co_await waitUntil(pred)` is a header-only composition that parks the task at
+  fair yield points until `pred()` returns true; the scheduler never polls the
+  predicate itself.
+
+  *Spec: API
+  [§12 waitUntil](docs/simpleawait/V1_API_CONTRACT.md#12-waituntil); design
+  [§18 waitUntil](docs/simpleawait/ARCHITECTURE.md#18-waituntil).*
+- **Signaling.**
+
+  `Event` is scheduler-local, manual-reset, and multi-waiter.
+
+  `co_await ev.wait()` suspends until `ev.set()` wakes every current waiter in
+  FIFO order and leaves the event set (so a later `wait()` passes straight
+  through); `ev.clear()` resets it.
+
+  *Spec: API [§9 Event](docs/simpleawait/V1_API_CONTRACT.md#9-event);
+  design [§15 Event](docs/simpleawait/ARCHITECTURE.md#15-event).*
+- **Messaging.**
+
+  `Queue<T, N>` is a bounded, scheduler-local FIFO.
+
+  `co_await q.send(v)` and `T v = co_await q.receive()` block with automatic
+  back-pressure and FIFO value and waiter order; `trySend`/`tryReceive` are the
+  non-blocking variants, and `T` need not be default-constructible.
+
+  *Spec: API
+  [§11 Queue](docs/simpleawait/V1_API_CONTRACT.md#11-queuet-capacity); design
+  [§17 Queue](docs/simpleawait/ARCHITECTURE.md#17-queuet-n).*
+- **External signaling.**
+
+  `ThreadSafeFlag` is the single-waiter bridge from an ISR or other-core context.
+
+  `flag.set()` is the only method safe to call from there; it coalesces repeated
+  signals and never runs coroutine code, and a task `co_await flag.wait()`s for
+  it and auto-resets the flag on consumption.
+
+  *Spec:
+  API [§10 ThreadSafeFlag](docs/simpleawait/V1_API_CONTRACT.md#10-threadsafeflag);
+  design [§16 ThreadSafeFlag](docs/simpleawait/ARCHITECTURE.md#16-threadsafeflag).*
+- **Diagnostics.** 
+
+  With `SIMPLEAWAIT_ENABLE_DIAGNOSTICS=1`, `stats()` returns an
+  allocation-free `Stats` snapshot (active/peak/ready/waiting-timer task counts
+  and frame-pool bytes used/peak/free plus allocation failures).
+  
+  *Spec: API
+  [§14 Diagnostics](docs/simpleawait/V1_API_CONTRACT.md#14-diagnostics); design
+  [§25 Diagnostics](docs/simpleawait/ARCHITECTURE.md#25-diagnostics).*
 
 ## Examples
 
@@ -182,9 +264,7 @@ The normative specification lives under [`docs/simpleawait/`](docs/simpleawait/)
 
 ## Packaging and publication notes
 
-The packaging metadata (`library.properties`, `library.json`) declares
-`SimpleAwait` version `1.0.0`, authored and maintained by **Noel Anderson**,
-under the [MIT](LICENSE) license.
+`SimpleAwait` is authored and maintained by **Noel Anderson** under the [MIT](LICENSE) license.
 
 The library passes Arduino Lint against the library specification: the CI
 metadata check runs `arduino-lint --compliance specification` and fails closed

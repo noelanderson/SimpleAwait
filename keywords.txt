@@ -1,0 +1,58 @@
+#######################################
+# Syntax Coloring Map for SimpleAwait
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+Task	KEYWORD1
+TaskHandle	KEYWORD1
+TaskId	KEYWORD1
+Scheduler	KEYWORD1
+Event	KEYWORD1
+ThreadSafeFlag	KEYWORD1
+Queue	KEYWORD1
+Stats	KEYWORD1
+Error	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+create_task	KEYWORD2
+spawn	KEYWORD2
+current_task	KEYWORD2
+poll	KEYWORD2
+scheduler	KEYWORD2
+yield	KEYWORD2
+delay	KEYWORD2
+delay_ms	KEYWORD2
+delay_us	KEYWORD2
+waitUntil	KEYWORD2
+stats	KEYWORD2
+send	KEYWORD2
+receive	KEYWORD2
+trySend	KEYWORD2
+tryReceive	KEYWORD2
+set	KEYWORD2
+clear	KEYWORD2
+isSet	KEYWORD2
+wait	KEYWORD2
+done	KEYWORD2
+valid	KEYWORD2
+hasReadyTasks	KEYWORD2
+hasPendingTasks	KEYWORD2
+activeTaskCount	KEYWORD2
+currentTask	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+SIMPLEAWAIT_MAX_TASKS	LITERAL1
+SIMPLEAWAIT_FRAME_POOL_BYTES	LITERAL1
+SIMPLEAWAIT_ENABLE_DIAGNOSTICS	LITERAL1
+SIMPLEAWAIT_ENABLE_ISR	LITERAL1
+SIMPLEAWAIT_ON_ERROR	LITERAL1
+SIMPLEAWAIT_CLOCK_NOW_US	LITERAL1

@@ -14,9 +14,9 @@
 //                                   tasks (scheduler slot capacity).
 //   SIMPLEAWAIT_FRAME_POOL_BYTES   Total bytes reserved for the fixed coroutine
 //                                   frame pool. No heap fallback is ever used.
-//   SIMPLEAWAIT_ON_ERROR(error)    Deterministic error hook. Receives an
-//                                   simpleawait::Error value once that enum is
-//                                   introduced. Must not depend on Serial.
+//   SIMPLEAWAIT_ON_ERROR(error)    Deterministic error hook. Receives a
+//                                   simpleawait::Error value. Must not depend on
+//                                   Serial.
 //   SIMPLEAWAIT_ENABLE_DIAGNOSTICS Set to 1 to compile in allocation-free
 //                                   diagnostic counters/stats.
 //   SIMPLEAWAIT_ENABLE_ISR         Set to 1 to compile in external/ISR context

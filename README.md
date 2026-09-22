@@ -30,14 +30,14 @@ instead of hand-written `millis()` state machines. It is conceptually a
 statically allocated, C++20, Arduino-native equivalent in spirit to MicroPython
 `asyncio` — **not** a tiny RTOS.
 
-> **Status: V1 feature-complete (milestones M0–M10); V1 hardening (M11) in
-> progress.** `Task`, the cooperative scheduler (`create_task`/`spawn`/`poll`/
-> `current_task`), `yield()`/`delay*()`, parent/child `co_await`, `Event`,
-> `ThreadSafeFlag`, `Queue<T,N>`, and `waitUntil` are implemented and covered by
-> the host test suite (MSVC and Clang, C++20 and C++23) and the eight golden
-> examples, which compile for RP2040 and RP2350 (Arm and RISC-V); the ESP32/
-> ESP32-S3 compiles run in CI. On-device hardware runs are a pre-release gate.
-> The example above compiles and runs.
+> **Status: 1.0.0 — the V1 API is complete and frozen.** `Task`, the cooperative
+> scheduler (`create_task`/`spawn`/`poll`/`current_task`), `yield()`/`delay*()`,
+> parent/child `co_await`, `Event`, `ThreadSafeFlag`, `Queue<T,N>`, and
+> `waitUntil` are covered by a deterministic host test suite (MSVC and Clang,
+> C++20 and C++23, plus ASan/UBSan) and eight golden examples that compile across
+> the full target matrix — RP2040, RP2350 (Arm and RISC-V), and ESP32/ESP32-S3 —
+> in CI. On-target validation sketches live in [`hardware/`](hardware/). The
+> example above compiles and runs.
 
 ## First-class targets
 
@@ -93,8 +93,23 @@ void loop()  { poll(); }
   allocation-free snapshot (active/peak/ready/waiting-timer task counts and
   frame-pool bytes used/peak/free plus allocation failures).
 
-See [`examples/`](examples/) for the eight runnable golden examples
-(`01_Blink` … `08_WaitUntil`).
+## Examples
+
+The [`examples/`](examples/) directory holds eight runnable golden examples plus a
+build skeleton. See [Compiling an example](#compiling-an-example-arduino) to build
+one for your board.
+
+| Example | What it shows |
+|---|---|
+| [`01_Blink`](examples/01_Blink) | The canonical cooperative LED blink — one task toggles the LED with `co_await delay_ms()` instead of a `millis()` state machine. |
+| [`02_TwoTasks`](examples/02_TwoTasks) | Two independent tasks scheduled concurrently with `create_task` and `spawn`, resumed in FIFO order within each `poll()` pass. |
+| [`03_YieldFairness`](examples/03_YieldFairness) | Cooperative fairness — tasks that only `co_await yield()` advance in lockstep and never starve one another. |
+| [`04_ParentChild`](examples/04_ParentChild) | Structured sequential composition — a parent task `co_await`s child tasks one after another. |
+| [`05_Event`](examples/05_Event) | Several tasks wait on one manual-reset `Event`; a single `set()` releases them all in FIFO order. |
+| [`06_ThreadSafeFlagIRQ`](examples/06_ThreadSafeFlagIRQ) | The interrupt-to-coroutine bridge — an ISR calls `ThreadSafeFlag::set()` and a task `co_await`s the flag. |
+| [`07_QueueProducerConsumer`](examples/07_QueueProducerConsumer) | A producer and consumer exchange values through a bounded `Queue<T,N>` with automatic back-pressure. |
+| [`08_WaitUntil`](examples/08_WaitUntil) | A task suspends at fair yield points with `co_await waitUntil(pred)` until a condition holds. |
+| [`Empty`](examples/Empty) | The minimal build skeleton — includes the header and compiles on every target; a starting point for new sketches. |
 
 ## The cooperative model: never block
 
@@ -161,10 +176,9 @@ arduino-cli compile --fqbn esp32:esp32:esp32s3 --library . examples/Empty
 
 The normative specification lives under [`docs/simpleawait/`](docs/simpleawait/):
 
-- [`V1_API_CONTRACT.md`](docs/simpleawait/V1_API_CONTRACT.md) — frozen public API
-- [`ARCHITECTURE.md`](docs/simpleawait/ARCHITECTURE.md) — normative design
-- [`SimpleAwait_Implementation_Spec.md`](docs/simpleawait/SimpleAwait_Implementation_Spec.md)
-- [`IMPLEMENTATION_PLAN.md`](docs/simpleawait/IMPLEMENTATION_PLAN.md) — milestones
+- [`V1_API_CONTRACT.md`](docs/simpleawait/V1_API_CONTRACT.md) — the frozen public API
+- [`ARCHITECTURE.md`](docs/simpleawait/ARCHITECTURE.md) — the normative design
+- [`SimpleAwait_Implementation_Spec.md`](docs/simpleawait/SimpleAwait_Implementation_Spec.md) — implementation notes and rationale
 
 ## Packaging and publication notes
 

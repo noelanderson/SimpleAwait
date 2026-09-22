@@ -75,8 +75,17 @@ template <size_t N>
 Task<void> sized() {
     volatile char buf[N];
     buf[0] = static_cast<char>(N);
-    (void)buf[0];
+    buf[N - 1] = static_cast<char>(N >> 8);
     co_await simpleawait::yield();
+    // Read back AFTER the suspension point. Coroutine frame storage only needs
+    // to hold what's live ACROSS a suspend/resume; a write-then-discard entirely
+    // before the only co_await is not observably live there, so an optimizing
+    // compiler may reserve zero frame storage for it regardless of N (confirmed:
+    // under Linux Clang at -O2/-Os this collapsed to the same tiny frame size
+    // for every N when buf was only touched before the co_await). Touching both
+    // ends after resuming forces the full N-byte extent to genuinely persist.
+    (void)buf[0];
+    (void)buf[N - 1];
 }
 
 // A frame that stays parked (holding its pool block) until *ev* is set.
@@ -84,8 +93,10 @@ template <size_t N>
 Task<void> holdSized(Event* ev) {
     volatile char buf[N];
     buf[0] = static_cast<char>(N);
-    (void)buf[0];
+    buf[N - 1] = static_cast<char>(N >> 8);
     co_await ev->wait();
+    (void)buf[0];
+    (void)buf[N - 1];
 }
 
 Task<void> napper(uint64_t us) {

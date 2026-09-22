@@ -71,32 +71,54 @@ Task<void> nest(int depth) {
     }
 }
 
+// A volatile sink: the C++ standard treats every volatile access as observable
+// behavior an implementation must preserve, so a value that flows into g_sink
+// can never be proven dead. Used below to force the fragmentation scenario's
+// probe buffers to occupy genuine, full-size frame storage (see sized<N>).
+volatile unsigned g_sink = 0;
+
 template <size_t N>
 Task<void> sized() {
+    // Touching only buf[0]/buf[N-1] (or any small, compile-time-constant set of
+    // indices) lets the optimizer prove the array is equivalent to a couple of
+    // independent scalars and needs no N-byte-contiguous storage at all --
+    // confirmed empirically: under Linux Clang at -O2/-Os this collapsed
+    // holdSized<700> and sized<2048> to the identical, tiny (64-byte) frame
+    // size, defeating this scenario's whole premise that a bigger N needs a
+    // bigger frame. Writing and reading every element via a runtime loop (not
+    // just the endpoints), with the checksum flowing into the volatile g_sink,
+    // is unprovable-dead and not reducible to a handful of scalars, so it
+    // forces the full N bytes to be real, frame-resident storage. Reading back
+    // AFTER the co_await additionally forces that storage to be live ACROSS the
+    // suspend/resume boundary (what a coroutine frame actually needs to hold),
+    // not just used-and-discarded before it.
     volatile char buf[N];
-    buf[0] = static_cast<char>(N);
-    buf[N - 1] = static_cast<char>(N >> 8);
+    for (size_t i = 0; i < N; ++i) {
+        buf[i] = static_cast<char>(i);
+    }
     co_await simpleawait::yield();
-    // Read back AFTER the suspension point. Coroutine frame storage only needs
-    // to hold what's live ACROSS a suspend/resume; a write-then-discard entirely
-    // before the only co_await is not observably live there, so an optimizing
-    // compiler may reserve zero frame storage for it regardless of N (confirmed:
-    // under Linux Clang at -O2/-Os this collapsed to the same tiny frame size
-    // for every N when buf was only touched before the co_await). Touching both
-    // ends after resuming forces the full N-byte extent to genuinely persist.
-    (void)buf[0];
-    (void)buf[N - 1];
+    unsigned checksum = 0;
+    for (size_t i = 0; i < N; ++i) {
+        checksum += static_cast<unsigned char>(buf[i]);
+    }
+    g_sink += checksum;
 }
 
 // A frame that stays parked (holding its pool block) until *ev* is set.
 template <size_t N>
 Task<void> holdSized(Event* ev) {
+    // See sized<N> above for why every element must be touched on both sides of
+    // the suspension point.
     volatile char buf[N];
-    buf[0] = static_cast<char>(N);
-    buf[N - 1] = static_cast<char>(N >> 8);
+    for (size_t i = 0; i < N; ++i) {
+        buf[i] = static_cast<char>(i);
+    }
     co_await ev->wait();
-    (void)buf[0];
-    (void)buf[N - 1];
+    unsigned checksum = 0;
+    for (size_t i = 0; i < N; ++i) {
+        checksum += static_cast<unsigned char>(buf[i]);
+    }
+    g_sink += checksum;
 }
 
 Task<void> napper(uint64_t us) {

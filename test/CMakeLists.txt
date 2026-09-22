@@ -95,6 +95,7 @@ arduinoawait_add_host_test(test_m9_errors test_m9_errors.cpp)
 arduinoawait_add_host_test(test_m9_shutdown test_m9_shutdown.cpp)
 arduinoawait_add_host_test(test_m10_waituntil test_m10_waituntil.cpp)
 arduinoawait_add_host_test(test_m10_diagnostics test_m10_diagnostics.cpp)
+arduinoawait_add_host_test(test_m11_stress test_m11_stress.cpp)
 
 # The default error hook must terminate deterministically.
 arduinoawait_add_death_test(test_m0_default_error test_m0_default_error.cpp)

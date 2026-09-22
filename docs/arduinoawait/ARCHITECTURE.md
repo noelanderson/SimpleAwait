@@ -447,6 +447,12 @@ A singly linked queue is preferred for RAM efficiency. Future cancellation may r
 
 A waiting task's generic intrusive `next` link may be reused because a task cannot be ready and waiting simultaneously.
 
+### 14.1 Waiter lifetime and static teardown
+
+During normal operation every waiter is removed from its queue when it is woken (`pop_front`) or when the primitive is destroyed while a live waiter is parked — the latter is the deterministic `object_destroyed_with_waiters` programming error. So there are no stale waiter links across completed scheduling cycles; the M11 stress suite asserts this (each cycle returns `activeTasks` and `frameBytesUsed` to zero).
+
+One boundary case is defined: destroying a scheduler-local primitive that OUTLIVES the scheduler singleton — a namespace-scope `Event`/`ThreadSafeFlag`/`Queue` at program exit, where the function-local scheduler is torn down first and destroys the parked task frames. The primitive's destructor still observes a non-empty waiter set and invokes `object_destroyed_with_waiters`. This is a reported programming error, NOT undefined behavior: the destructors read but never dereference the released waiter slots. `Queue`, whose waiter nodes live on the awaiting coroutine frames, additionally has each node unlink itself as its frame is torn down, so a global `Queue` in this scenario reports nothing; `Event`/`ThreadSafeFlag`, whose waiter nodes are scheduler-owned slots, report the error. A first-class cross-primitive teardown-unlink protocol is out of scope for V1 (on-device, `loop()` never returns, so the scheduler is never torn down).
+
 ---
 
 ## 15. Event

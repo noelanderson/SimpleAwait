@@ -7,6 +7,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added — M11: V1 hardening
+
+- Stress suite `test/test_m11_stress.cpp` (host, `ARDUINOAWAIT_ENABLE_DIAGNOSTICS=1`,
+  MSVC + Clang, C++20 and C++23): 100,000+ task completions with heavy slot reuse and
+  generation churn; repeated deep child nesting; allocator fragmentation/recovery
+  over mixed frame sizes; repeated timer creation/completion; `Event` fan-out (16
+  waiters released together, repeated); a `ThreadSafeFlag` set/poll storm; and `Queue`
+  producer/consumer saturation over a small ring — including a lifetime-counted
+  payload that proves no double destroy. Each scenario drains to idle and asserts the
+  required final invariants via `stats()`: `activeTasks == 0`, `frameBytesUsed == 0`
+  (every coroutine frame recovered, so no stale waiter link survives a cycle), and
+  `allocationFailures == 0`. The ThreadSafeFlag storm exercises the external-signal
+  `s_pending_` clear-then-reassert path across many passes.
+- Build-mode coverage (CI, `.github/workflows/ci.yml`): the suite — including the new
+  stress test — runs under GCC and Clang at `-O0`/`-O2`/`-Os`, under ASan + UBSan, at
+  the C++20 floor and C++23, and the golden examples + hardware sketches compile across
+  the RP2040/RP2350 (Arm + RISC-V)/ESP32/ESP32-S3 target matrix.
+- Documented the static-teardown behavior of scheduler-local primitives: destroying a
+  global `Event`/`ThreadSafeFlag`/`Queue` that still has a parked waiter at program
+  exit (when the function-local scheduler singleton is torn down first) invokes the
+  deterministic `object_destroyed_with_waiters` hook. This is a reported programming
+  error, never undefined behavior — the destructors read but never dereference the
+  released waiter. `Queue`'s frame-resident awaiter nodes additionally self-unlink, so
+  a global `Queue` in that scenario reports nothing.
+
 ### Added — M10: waitUntil, diagnostics, and V1 integration
 
 - `arduinoawait::waitUntil(predicate)` (`src/arduinoawait/waituntil.h`) — the frozen

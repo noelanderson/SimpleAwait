@@ -8,7 +8,7 @@ SimpleAwait lets you write embedded control flow as ordinary sequential code:
 ```cpp
 #include <SimpleAwait.h>
 using namespace simpleawait;
-f
+
 // Led on 500ms, off 1s, repeat
 Task<void> blink() {
     while (true) {

@@ -1,8 +1,9 @@
 {
   "name": "SimpleAwait",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Deterministic, fixed-memory cooperative coroutine library for Arduino using native C++20 coroutines. Statically allocated scheduler and coroutine frame pool, no RTOS, no heap allocation for coroutine frames, deterministic failure behavior. First-class targets: RP2040, RP2350 (Arm and RISC-V), and the ESP32 family.",
   "keywords": "coroutines, async, await, cooperative, scheduler, asyncio, rp2040, rp2350, esp32",
+  "homepage": "https://github.com/noelanderson/SimpleAwait",
   "repository": {
     "type": "git",
     "url": "https://github.com/noelanderson/SimpleAwait.git"
@@ -22,5 +23,14 @@
   "headers": "SimpleAwait.h",
   "examples": [
     "examples/*/*.ino"
-  ]
+  ],
+  "export": {
+    "exclude": [
+      "test",
+      "extras",
+      "docs",
+      ".github"
+    ]
+  }
 }
+

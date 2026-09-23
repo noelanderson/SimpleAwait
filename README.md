@@ -92,8 +92,11 @@ The summaries below are a quick reference; the **authoritative** signatures and
 semantics are the frozen
 [V1 API Contract](docs/simpleawait/V1_API_CONTRACT.md), with design rationale in
 [ARCHITECTURE](docs/simpleawait/ARCHITECTURE.md) and the full narrative in the
-[implementation spec](docs/simpleawait/SimpleAwait_Implementation_Spec.md). Each
-entry links its contract section (API) and architecture section (design).
+[implementation spec](docs/simpleawait/SimpleAwait_Implementation_Spec.md). The
+[detailed repository architecture](docs/simpleawait/ARCHITECTURE_DETAILED.md)
+maps the implementation's classes, ownership, states, runtime flows, platform
+boundaries, and test structure. Each entry below links its contract section
+(API) and architecture section (design).
 
 - **Tasks.**
 
@@ -219,7 +222,116 @@ Define any of these before including `<SimpleAwait.h>` (defaults shown):
 | `SIMPLEAWAIT_FRAME_POOL_BYTES` | `4096` | Coroutine frame pool size (bytes) |
 | `SIMPLEAWAIT_ON_ERROR(error)` | halt/abort | Deterministic error hook |
 | `SIMPLEAWAIT_ENABLE_DIAGNOSTICS` | `0` | Compile in diagnostic counters |
-| `SIMPLEAWAIT_ENABLE_ISR` | `0` | Compile in external/ISR signaling |
+| `SIMPLEAWAIT_ENABLE_ISR` | `0` | Reserved V1 toggle; the current `ThreadSafeFlag` bridge is compiled regardless of this value |
+
+### Sizing tasks and coroutine frames
+
+`SIMPLEAWAIT_MAX_TASKS` and `SIMPLEAWAIT_FRAME_POOL_BYTES` control different
+fixed-memory resources:
+
+- `SIMPLEAWAIT_MAX_TASKS` reserves scheduler metadata and limits how many tasks
+  the scheduler can own simultaneously.
+- `SIMPLEAWAIT_FRAME_POOL_BYTES` reserves the arena that holds all live
+  coroutine frames.
+
+The limits are configured independently, but every scheduled task needs both a
+scheduler slot and a frame. Effective concurrency is therefore bounded by the
+smaller resource:
+
+```text
+min(task slots, variable-sized coroutine frames that fit in the frame pool)
+```
+
+There is no exact bytes-per-task constant. The compiler determines each frame's
+size from the coroutine's parameters, local state, active awaiters, alignment,
+and target ABI. As a result:
+
+- large frames can exhaust the pool before all task slots are used;
+- many small frames can exhaust task slots while pool bytes remain;
+- an unscheduled lazy `Task<void>` consumes frame bytes but no scheduler slot;
+- an awaited child temporarily needs its own frame and scheduler slot while its
+  parent remains live.
+
+#### What makes a frame larger
+
+Parameters passed by value normally live in the frame:
+
+```cpp
+Task<void> process(int id, LargeConfig config) {
+    co_await delay_ms(100);
+    use(id, config);
+}
+```
+
+This retains a full `LargeConfig`. A pointer or reference normally retains only
+an address, but the referenced object must outlive the coroutine:
+
+```cpp
+Task<void> process(const LargeConfig& config) {
+    co_await delay_ms(100);
+    use(config); // config must still exist here
+}
+```
+
+Never use a reference merely to save frame bytes if it can dangle while the task
+is suspended.
+
+Local variables generally need frame storage when their values remain live
+across a `co_await`:
+
+```cpp
+Task<void> largeFrame() {
+    uint8_t buffer[256];
+    fill(buffer);
+    co_await delay_ms(100);
+    consume(buffer); // buffer must survive in the frame
+}
+```
+
+End a large local's lifetime before suspending when it is no longer needed:
+
+```cpp
+Task<void> smallerFrame() {
+    {
+        uint8_t buffer[256];
+        fillAndConsume(buffer);
+    } // buffer need not survive the suspension
+
+    co_await delay_ms(100);
+}
+```
+
+Awaiters can also carry data. A suspended `Queue<T,N>::send(value)` retains its
+`T` in the sender's coroutine frame, and `waitUntil(predicate)` stores the
+predicate by value. Large queue values or large by-value lambda captures can
+therefore increase frame requirements.
+
+Frame layout is compiler-, optimization-, and target-dependent. `sizeof(Task<void>)`
+reports only the small coroutine handle wrapper, not the allocated frame size.
+Measure the actual target build rather than copying host measurements.
+
+#### Practical sizing workflow
+
+1. Start with the defaults and enable diagnostics in a shared configuration
+   header included before `<SimpleAwait.h>`:
+
+   ```cpp
+   #define SIMPLEAWAIT_ENABLE_DIAGNOSTICS 1
+   #include <SimpleAwait.h>
+   ```
+
+2. Exercise the maximum realistic workload: create the largest expected set of
+   concurrent tasks, enter queue back-pressure paths, and run nested child tasks.
+3. Inspect `stats().peakTasks`, `stats().peakFrameBytesUsed`, and
+   `stats().allocationFailures`.
+4. Set `SIMPLEAWAIT_MAX_TASKS` above the observed simultaneous task count,
+   including parents waiting on children.
+5. Set `SIMPLEAWAIT_FRAME_POOL_BYTES` above the observed peak frame usage with
+   headroom for compiler, optimization, and feature changes.
+6. Repeat the measurement on every target/toolchain configuration you ship.
+
+Keep both limits intentional. Raising only one does not increase usable
+concurrency when the other is already the bottleneck.
 
 ## Building and testing (host)
 
@@ -256,10 +368,13 @@ arduino-cli compile --fqbn esp32:esp32:esp32s3 --library . examples/Empty
 
 ## Documentation
 
-The normative specification lives under [`docs/simpleawait/`](docs/simpleawait/):
+Architecture and specification documentation lives under
+[`docs/simpleawait/`](docs/simpleawait/):
 
 - [`V1_API_CONTRACT.md`](docs/simpleawait/V1_API_CONTRACT.md) — the frozen public API
 - [`ARCHITECTURE.md`](docs/simpleawait/ARCHITECTURE.md) — the normative design
+- [`ARCHITECTURE_DETAILED.md`](docs/simpleawait/ARCHITECTURE_DETAILED.md) — the
+  non-normative implementation-oriented component, class, lifecycle, and flow map
 - [`SimpleAwait_Implementation_Spec.md`](docs/simpleawait/SimpleAwait_Implementation_Spec.md) — implementation notes and rationale
 
 ## Packaging and publication notes

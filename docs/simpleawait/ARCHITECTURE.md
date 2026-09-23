@@ -125,9 +125,9 @@ enum class State : uint8_t {
     ready,          // in the ready FIFO
     running,        // currently resumed
     waiting_timer,  // parked on a delay deadline
-    waiting_local,  // parked on an Event or Queue
     waiting_child,  // parent parked on an awaited child
-    suspended,      // parked on a ThreadSafeFlag (external wake)
+    waiting_local,  // parked on an Event, Queue, or ThreadSafeFlag
+    suspended,      // suspended without a registered V1 wake source
     completed       // co_return'd; slot awaiting reclaim
 };
 ```
@@ -141,18 +141,22 @@ stateDiagram-v2
     ready --> running: poll() resumes it
     running --> ready: yield() / delay(0)
     running --> waiting_timer: delay(d>0)
-    running --> waiting_local: co_await Event / Queue
+    running --> waiting_local: co_await Event / Queue / ThreadSafeFlag
     running --> waiting_child: co_await child Task
-    running --> suspended: co_await ThreadSafeFlag
+    running --> suspended: unknown awaitable registered no wake source
     running --> completed: co_return
     waiting_timer --> ready: deadline due
-    waiting_local --> ready: Event set / Queue transfer
+    waiting_local --> ready: Event set / Queue transfer / flag delivery
     waiting_child --> ready: child completed
-    suspended --> ready: flag signal delivered
-    completed --> free: slot reclaimed (generation++)
+    completed --> ready: slot reused (generation++)
 ```
 
 Newly readied tasks run on a later `poll()` pass, never inline.
+
+`suspended` is a defensive fallback used when a coroutine suspends without a V1
+awaitable registering a wake source. `ThreadSafeFlag` uses `waiting_local`; its
+external signal is resolved in scheduler context and moves the parked slot to
+`ready`.
 
 Illegal transitions are programming/runtime errors in diagnostic builds.
 

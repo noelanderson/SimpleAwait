@@ -19,8 +19,9 @@
 //                                   Serial.
 //   SIMPLEAWAIT_ENABLE_DIAGNOSTICS Set to 1 to compile in allocation-free
 //                                   diagnostic counters/stats.
-//   SIMPLEAWAIT_ENABLE_ISR         Set to 1 to compile in external/ISR context
-//                                   signaling support (ThreadSafeFlag bridge).
+//   SIMPLEAWAIT_ENABLE_ISR         Reserved V1 external/ISR signaling toggle.
+//                                   The current ThreadSafeFlag bridge is compiled
+//                                   regardless of this value.
 //   SIMPLEAWAIT_CLOCK_NOW_US()     Optional advanced/testing override returning
 //                                   a uint64_t microsecond count. Normal
 //                                   RP2040/RP2350/ESP32 backends do not require

@@ -5,6 +5,14 @@ All notable changes to SimpleAwait are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1]
+
+### Fixed
+
+- README fixes and cleanup including code sample.
+- Packaging: added a PlatformIO `homepage` field and `export.exclude` so the
+  published package excludes `test/`, `extras/`, `docs/`, and `.github/`.
+
 ## [1.0.0]
 
 Initial release. SimpleAwait is a deterministic, fixed-memory cooperative

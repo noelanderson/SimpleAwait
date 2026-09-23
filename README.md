@@ -8,7 +8,7 @@ SimpleAwait lets you write embedded control flow as ordinary sequential code:
 ```cpp
 #include <SimpleAwait.h>
 using namespace simpleawait;
-f
+
 // Led on 500ms, off 1s, repeat
 Task<void> blink() {
     while (true) {
@@ -50,6 +50,14 @@ instead of hand-written `millis()` state machines. It is conceptually a
 statically allocated, C++20, Arduino-native equivalent in spirit to MicroPython
 `asyncio` — **not** a tiny RTOS.
 
+## Why would I use this?
+Write sequential-looking asynchronous Arduino code without an RTOS and without giving up deterministic memory use.
+| Approach                  | Code style                |               Heap required | Preemptive |   RTOS |
+| ------------------------- | ------------------------- | --------------------------: | ---------: | -----: |
+| `millis()` state machines | manual state machine      |                          No |         No |     No |
+| TaskScheduler-style       | callbacks                 |                   No/varies |         No |     No |
+| FreeRTOS tasks            | sequential                |                     Usually |        Yes |    Yes |
+| **SimpleAwait**           | **sequential `co_await`** | **No coroutine-frame heap** |     **No** | **No** |
 
 
 ## First-class targets

@@ -5,6 +5,15 @@ All notable changes to SimpleAwait are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `poll_and_wait()`, an explicit platform-idle scheduler helper. The ESP32
+  backend waits on a statically allocated FreeRTOS binary semaphore until the
+  nearest coroutine timer or an external `ThreadSafeFlag` signal; `poll()`
+  remains non-blocking and unchanged.
+
 ## [1.0.1]
 
 ### Fixed

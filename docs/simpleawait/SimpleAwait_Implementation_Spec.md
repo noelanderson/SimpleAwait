@@ -58,7 +58,7 @@ Use **TinyAwait** as the primary low-level implementation starting point, preser
 - fixed total coroutine memory;
 - variable-size coroutine frames;
 - no thread creation;
-- no RTOS requirement;
+- no RTOS task creation for coroutine execution;
 - nested/child coroutine execution;
 - inexpensive scheduler polling;
 - compact timer/scheduler data structures.
@@ -600,6 +600,7 @@ Common-case singleton/helper API:
 ```cpp
 Scheduler& scheduler();
 void poll();
+void poll_and_wait();
 TaskHandle current_task();
 ```
 
@@ -624,6 +625,20 @@ At a high level it shall:
 9. return without waiting for future work.
 
 It MUST NOT block waiting for timers or events.
+
+`poll_and_wait()` SHALL:
+
+1. prepare the platform wake primitive before a waiter can first be armed;
+2. execute exactly one ordinary bounded `poll()` pass;
+3. return immediately if that pass leaves a task ready;
+4. otherwise invoke the optional platform idle adapter with the nearest timer
+   deadline and whether an external `ThreadSafeFlag` waiter is armed;
+5. return after the platform wakes, without processing timers, resolving
+   signals, or resuming coroutine code until the next scheduler pass.
+
+On platforms without an idle adapter, `poll_and_wait()` SHALL remain
+behaviorally equivalent to `poll()`. Platform waiting MUST use fixed memory and
+MUST NOT resume user code from an ISR or callback.
 
 Typical loop:
 
@@ -2980,4 +2995,3 @@ The following table is normative guidance for implementation behavior, not a req
 Key difference from Python implementations:
 
 > SimpleAwait must achieve these semantics without a garbage-collected heap, using fixed-capacity scheduler metadata and a fixed coroutine-frame pool.
-

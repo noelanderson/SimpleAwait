@@ -373,21 +373,35 @@ V1 policy: if `now_us + duration_us` would overflow `uint64_t`, reject the opera
 
 ---
 
-## 12. Hardware alarms and low-power operation
+## 12. Platform idle waiting
 
-V1 uses the native hardware clock but does not map each coroutine timer onto a Pico hardware alarm or ESP Timer object.
+V1 uses the native hardware clock but does not map each coroutine timer onto a
+hardware alarm or ESP Timer object. `poll()` remains non-blocking and continues
+to drive the event loop exactly as specified in section 9.
 
-The event loop remains driven by `poll()`.
+The explicit `poll_and_wait()` helper adds a platform idle phase after one
+complete bounded poll pass. The idle phase runs only when no task is ready, so
+tasks made ready during the pass retain the required later-poll behavior.
 
-A future low-power extension may:
+The ESP32 backend uses one statically allocated FreeRTOS binary semaphore:
 
-1. identify the nearest scheduler deadline;
-2. arm one platform wake source;
-3. sleep the MCU;
-4. wake into scheduler context;
-5. let normal `poll()` process due tasks.
+1. calculate the timeout to the cached nearest scheduler deadline, rounding up
+   to avoid early timer wake;
+2. block the calling task on the semaphore with that timeout;
+3. let `ThreadSafeFlag::set()` give the semaphore from ISR, callback, or
+   other-core context after publishing its pending signal;
+4. return from `poll_and_wait()` without resuming coroutine code;
+5. let the next scheduler pass resolve the signal or due timer normally.
 
-The alarm ISR must never resume user coroutine code directly.
+The semaphore is only an idle wake primitive. It never owns coroutine state,
+manipulates scheduler lists, or resumes user code. Its binary behavior matches
+`ThreadSafeFlag` coalescing semantics. If no timer and no externally wakeable
+flag exists, ESP32 waits one RTOS tick rather than blocking forever, allowing
+Arduino work after `loop()` to progress.
+
+Other targets currently implement the idle phase as a no-op. A future backend
+may add a target-native wait while preserving the same ownership and
+scheduler-context rules.
 
 ---
 

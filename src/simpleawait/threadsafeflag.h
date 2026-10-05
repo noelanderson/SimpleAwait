@@ -16,6 +16,7 @@
 
 #include "config.h"
 #include "error.h"
+#include "detail/platform_idle.h"
 #include "detail/platform_sync.h"
 #include "scheduler.h"
 
@@ -55,9 +56,19 @@ public:
     // External-context safe: mark signaled + scheduler externally pending, then
     // return. No scheduler list manipulation, no coroutine resumption.
     void set() noexcept {
-        [[maybe_unused]] detail::CriticalSection cs;
-        signaled_ = true;
-        s_pending_ = true;
+        bool newly_signaled = false;
+        {
+            [[maybe_unused]] detail::CriticalSection cs;
+            newly_signaled = !signaled_;
+            signaled_ = true;
+            s_pending_ = true;
+        }
+        // Wake after releasing the metadata critical section. A pending binary
+        // semaphore token closes the race between external-signal polling and
+        // the subsequent platform wait.
+        if (newly_signaled) {
+            detail::platform_wake_scheduler();
+        }
     }
 
     void clear() noexcept {
@@ -71,6 +82,7 @@ public:
 
 private:
     friend void detail::poll_external_signals() noexcept;
+    friend bool detail::has_external_waiters() noexcept;
 
     // If signaled, consume the signal (auto-reset) and report true so wait() does
     // not suspend; otherwise false. Protected against a concurrent set().
@@ -129,6 +141,10 @@ private:
 };
 
 namespace detail {
+inline bool has_external_waiters() noexcept {
+    return ThreadSafeFlag::s_armed_head_ != nullptr;
+}
+
 inline void poll_external_signals() noexcept {
     // Fast exit unless an external set() is pending (checked under protection).
     {

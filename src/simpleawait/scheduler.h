@@ -18,6 +18,7 @@
 #include "config.h"
 #include "error.h"
 #include "detail/platform_clock.h"
+#include "detail/platform_idle.h"
 #include "detail/time_math.h"
 #include "task.h"
 
@@ -67,6 +68,7 @@ private:
 void spawn(Task<void>&& task);
 TaskHandle current_task() noexcept;
 void poll();
+void poll_and_wait();
 
 namespace detail {
 // Test-only seam: force a scheduler slot's generation, to exercise generation
@@ -78,6 +80,8 @@ void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration gener
 // threadsafeflag.h; called by poll() (ARCHITECTURE §9 step 4). A no-op when no
 // external signal is pending.
 void poll_external_signals() noexcept;
+// True when a ThreadSafeFlag waiter can wake a platform scheduler wait.
+bool has_external_waiters() noexcept;
 
 #if SIMPLEAWAIT_ENABLE_DIAGNOSTICS
 // Diagnostics seam (V1_API_CONTRACT §14): scheduler-side counters. Defined in
@@ -134,9 +138,22 @@ public:
 
     // One bounded scheduler pass (V1 frozen semantics, ARCHITECTURE §9).
     void poll() {
+        (void)run_poll_pass();
+    }
+
+    bool hasReadyTasks() const noexcept { return ready_count_ > 0; }
+    bool hasPendingTasks() const noexcept { return active_count_ > 0; }
+    size_t activeTaskCount() const noexcept { return active_count_; }
+
+private:
+    // Returns true only when one complete scheduler pass ran. poll_and_wait()
+    // uses this result so rejected reentry can never proceed into an idle wait.
+    bool run_poll_pass() {
         if (shutting_down_) {
-            return; // teardown in progress: never run a pass
+            return false; // teardown in progress: never run a pass
         }
+
+        bool pass_completed = false;
         if (in_poll_) {
             SIMPLEAWAIT_ON_ERROR(Error::scheduler_reentry);
         } else {
@@ -146,17 +163,15 @@ public:
             process_due_timers();             // §9 step 5: enqueue due timers (deterministic)
             run_pass();
             in_poll_ = false;
+            pass_completed = true;
         }
+        return pass_completed;
     }
 
-    bool hasReadyTasks() const noexcept { return ready_count_ > 0; }
-    bool hasPendingTasks() const noexcept { return active_count_ > 0; }
-    size_t activeTaskCount() const noexcept { return active_count_; }
-
-private:
     friend class TaskHandle;
     friend TaskHandle create_task(Task<void>&& task);
     friend void spawn(Task<void>&& task);
+    friend void poll_and_wait();
     friend void detail::force_slot_generation(Scheduler&, TaskSlot, TaskGeneration) noexcept;
     friend class YieldAwaitable;
     friend class DelayAwaitable;
@@ -166,6 +181,7 @@ private:
     template <class T, size_t Capacity>
     friend class Queue;
     friend void detail::poll_external_signals() noexcept;
+    friend bool detail::has_external_waiters() noexcept;
 #if SIMPLEAWAIT_ENABLE_DIAGNOSTICS
     friend detail::SchedulerCounters detail::scheduler_counters() noexcept;
 #endif
@@ -529,6 +545,16 @@ private:
         nearest_deadline_ = nearest;
     }
 
+    // Called only after a complete bounded poll() pass. A ready task always
+    // suppresses the wait so work readied during that pass runs on the next pass.
+    void wait_for_work() noexcept {
+        if (ready_count_ == 0) {
+            detail::platform_wait_until(
+                nearest_deadline_,
+                detail::has_external_waiters());
+        }
+    }
+
     Slot slots_[kMaxTasks]{};
     Slot* ready_head_ = nullptr;
     Slot* ready_tail_ = nullptr;
@@ -565,6 +591,13 @@ inline void spawn(Task<void>&& task) {
 }
 inline TaskHandle current_task() noexcept { return scheduler().currentTask(); }
 inline void poll() { scheduler().poll(); }
+inline void poll_and_wait() {
+    detail::platform_prepare_scheduler_wait();
+    Scheduler& instance = scheduler();
+    if (instance.run_poll_pass()) {
+        instance.wait_for_work();
+    }
+}
 
 namespace detail {
 inline void force_slot_generation(Scheduler& sched, TaskSlot slot, TaskGeneration generation) noexcept {

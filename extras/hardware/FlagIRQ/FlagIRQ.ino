@@ -36,6 +36,7 @@
 
 using simpleawait::delay_ms;
 using simpleawait::poll;
+using simpleawait::poll_and_wait;
 using simpleawait::spawn;
 using simpleawait::Task;
 using simpleawait::ThreadSafeFlag;
@@ -154,7 +155,7 @@ void setup() {
 }
 
 void loop() {
-    poll();
+    poll_and_wait();
 
     if (g_reported || g_isr_sets < kStormSignals) {
         return; // storm still running, or verdict already printed

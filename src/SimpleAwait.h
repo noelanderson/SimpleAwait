@@ -18,7 +18,7 @@
 //  docs/simpleawait/ARCHITECTURE.md for the normative design.
 //
 //  This single include exposes the whole public API: Task<void>, the scheduler
-//  (create_task/spawn/current_task/poll, TaskHandle), yield()/delay*(),
+//  (create_task/spawn/current_task/poll/poll_and_wait, TaskHandle), yield()/delay*(),
 //  parent/child await, Event, ThreadSafeFlag, Queue<T,Capacity>, waitUntil(),
 //  and — under SIMPLEAWAIT_ENABLE_DIAGNOSTICS — Stats/stats(). The public API is
 //  frozen; see docs/simpleawait/V1_API_CONTRACT.md.
@@ -47,7 +47,7 @@
 // Lazy, move-only Task<void> coroutine handle.
 #include "simpleawait/task.h"
 
-// Cooperative scheduler: create_task/spawn/current_task/poll, TaskHandle.
+// Cooperative scheduler: create_task/spawn/current_task/poll/poll_and_wait, TaskHandle.
 #include "simpleawait/scheduler.h"
 
 // yield() and delay()/delay_ms()/delay_us() timer awaitables.
@@ -71,7 +71,7 @@
 namespace simpleawait {
 
 // The V1 public surface is declared by the headers included above: Task<void>,
-// Scheduler with create_task/spawn/current_task/poll and TaskHandle, yield() and
+// Scheduler with create_task/spawn/current_task/poll/poll_and_wait and TaskHandle, yield() and
 // delay*(), parent/child await, Event, ThreadSafeFlag, Queue<T,Capacity>,
 // waitUntil(), and (under SIMPLEAWAIT_ENABLE_DIAGNOSTICS) Stats/stats(). This
 // aggregation header intentionally declares nothing of its own.

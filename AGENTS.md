@@ -125,6 +125,10 @@ For V1, `poll()`:
 
 Do not change this into "run until idle".
 
+`poll_and_wait()` may add a platform idle wait only after a complete bounded
+`poll()` pass. It must not resume coroutine code, process a second pass, or
+change `poll()` semantics.
+
 Do not inline-resume a parent when a child completes.
 
 Do not make `delay(0)` immediately ready.

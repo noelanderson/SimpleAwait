@@ -193,6 +193,7 @@ public:
 
 Scheduler& scheduler() noexcept;
 void poll();
+void poll_and_wait();
 
 }
 ```
@@ -206,6 +207,16 @@ void loop() {
 ```
 
 `poll()` never waits for a future deadline.
+
+`poll_and_wait()` performs exactly one bounded `poll()` pass, preserving all
+ready-queue and later-pass semantics, then invokes the platform idle adapter
+only when no task is ready. On ESP32, the calling FreeRTOS task blocks until the
+nearest coroutine timer or an external `ThreadSafeFlag` signal. On platforms
+without an idle adapter it is behaviorally equivalent to `poll()`.
+
+Unlike `poll()`, `poll_and_wait()` may block. Use it only when SimpleAwait owns
+the calling task's idle period. Code placed after it in Arduino `loop()` may not
+run until the scheduler wakes.
 
 ---
 

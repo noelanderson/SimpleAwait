@@ -96,6 +96,28 @@ void setup() { spawn(blink()); }
 void loop()  { poll(); }
 ```
 
+### Event-driven idle on ESP32
+
+Applications whose Arduino `loop()` exists only to drive SimpleAwait can use
+`poll_and_wait()`:
+
+```cpp
+void loop() {
+    simpleawait::poll_and_wait();
+}
+```
+
+It performs one normal bounded scheduler pass. If no task is ready, the ESP32
+backend blocks the calling FreeRTOS task on a statically allocated binary
+semaphore until the nearest coroutine timer or an external
+`ThreadSafeFlag::set()`. ISR and other-core signals wake the scheduler but never
+resume coroutine code directly.
+
+`poll()` remains non-blocking and unchanged. `poll_and_wait()` may block, so use
+it only when SimpleAwait owns the calling task's idle period. Arduino work after
+the call, including `serialEventRun()`, runs only after the scheduler wakes.
+Other target backends currently treat `poll_and_wait()` like `poll()`.
+
 The summaries below are a quick reference; the **authoritative** signatures and
 semantics are the frozen
 [V1 API Contract](docs/simpleawait/V1_API_CONTRACT.md), with design rationale in

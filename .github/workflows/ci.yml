@@ -234,7 +234,8 @@ jobs:
       - name: Lint and gate metadata
         run: |
           set +e
-          ./arduino-lint --compliance specification --format json "$GITHUB_WORKSPACE" > lint.json
+          ./arduino-lint --compliance specification --library-manager update \
+            --format json "$GITHUB_WORKSPACE" > lint.json
           status=$?
           set -e
           # arduino-lint exits 0 (no errors) or 1 (rule errors found). Any other
